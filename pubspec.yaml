@@ -1,0 +1,32 @@
+name: mobile_soundaudio
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  just_audio: ^0.9.35
+  audio_service: ^0.18.12
+  http: ^1.1.0
+  rxdart: ^0.27.7
+  shared_preferences: ^2.1.0
+  firebase_core: ^4.2.0
+  firebase_auth: ^6.1.1
+  google_sign_in: ^7.2.0
+  google_sign_in_ios: ^6.2.2
+  flutter_facebook_auth: ^7.1.2
+  sign_in_with_apple: ^7.0.1
+  font_awesome_flutter: ^10.12.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true

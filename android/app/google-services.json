@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "438935519077",
+    "project_id": "soundaudiodb-c32f6",
+    "storage_bucket": "soundaudiodb-c32f6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:438935519077:android:f5cf6e46a969d7a99fab8c",
+        "android_client_info": {
+          "package_name": "com.example.mobile_soundaudio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDuTB2cFJ6Ew6Sk3qCxWlO-dud8BcdlRF4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
