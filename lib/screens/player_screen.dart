@@ -3,6 +3,9 @@ import 'package:just_audio/just_audio.dart';
 import '../services/music_api_service.dart';
 import 'package:rxdart/rxdart.dart';
 import '../services/audio_player_service.dart';
+import '../models/lyric_line.dart';
+import '../widgets/devices_dialog.dart';
+import '../services/signalr_service.dart';
 
 class PlayerScreen extends StatefulWidget {
   final AudioPlayer audioPlayer;
@@ -24,17 +27,12 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _iconScale;
+  List<LyricLine> _lyricLines = [];
+  bool _isLoadingLyric = true;
   double _dragOffset = 0;
-
-  // Cập nhật các streams để theo dõi trạng thái audio
-  Stream<Duration> get _positionStream => Rx.combineLatest2<Duration, bool, Duration>(
-    widget.audioPlayer.positionStream,
-    widget.audioPlayer.playingStream,
-    (position, playing) => position
-  );
-
-  Stream<Duration?> get _durationStream => widget.audioPlayer.durationStream;
+  int _currentLyricIndex = -1;
+  final ScrollController _lyricScrollController = ScrollController(); // Thêm scroll controller
+  bool _autoScroll = true; // Flag để kiểm soát auto-scroll
 
   Stream<PositionData> get _positionDataStream =>
       Rx.combineLatest3<Duration, Duration?, bool, PositionData>(
@@ -42,7 +40,6 @@ class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderSt
         widget.audioPlayer.durationStream,
         widget.audioPlayer.playingStream,
         (position, duration, isPlaying) {
-          // Use duration from player if available; otherwise fallback to DB value stored on the Song model
           Duration finalDuration = Duration.zero;
           if (duration != null && duration.inMilliseconds > 0) {
             finalDuration = duration;
@@ -56,28 +53,34 @@ class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderSt
             isPlaying: isPlaying,
           );
         },
-      ).distinct(); // Chỉ cập nhật khi có thay đổi thực sự
+      ).distinct();
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       duration: const Duration(milliseconds: 200),
-      vsync: this,
+      vsync: this
     );
     
-    _iconScale = Tween<double>(
-      begin: 1.0, 
-      end: 0.8
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    ));
-
     // Đảm bảo player được khởi tạo đúng
     widget.audioPlayer.playerStateStream.listen((state) {
       if (mounted) {
-        setState(() {}); // Cập nhật UI khi trạng thái player thay đổi
+        setState(() {}); 
+        final currentSequence = widget.audioPlayer.sequenceState?.currentSource?.tag;
+        if (currentSequence is Map && currentSequence['id'] != null) {
+          final newSongId = currentSequence['id'] as String;
+          _reloadLyricIfChanged(newSongId);
+        } else {
+          _loadLyric();
+        }
+      }
+    });
+
+    // Lắng nghe thay đổi position để cập nhật lyric
+    widget.audioPlayer.positionStream.listen((position) {
+      if (mounted && _lyricLines.isNotEmpty) {
+        _updateCurrentLyric(position);
       }
     });
 
@@ -100,11 +103,108 @@ class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderSt
         setState(() {});
       }
     });
+
+    _loadLyric();
+  }
+
+  // Thêm method để cập nhật lyric hiện tại dựa trên position
+  void _updateCurrentLyric(Duration position) {
+    if (_lyricLines.isEmpty) return;
+    
+    int newIndex = -1;
+    
+    // Tìm dòng cuối cùng có thời gian <= position hiện tại
+    for (int i = 0; i < _lyricLines.length; i++) {
+      if (position >= _lyricLines[i].time) {
+        newIndex = i;
+      } else {
+        break;
+      }
+    }
+    
+    // Debug: In ra console để kiểm tra
+    if (newIndex >= 0 && newIndex < _lyricLines.length) {
+      debugPrint('Current position: ${position.inSeconds}s, Lyric index: $newIndex, Text: ${_lyricLines[newIndex].text}');
+    }
+    
+    if (newIndex != _currentLyricIndex) {
+      setState(() {
+        _currentLyricIndex = newIndex;
+      });
+      
+      // Auto scroll đến dòng hiện tại
+      if (_autoScroll && _lyricScrollController.hasClients && newIndex >= 0) {
+        _scrollToCurrentLyric(newIndex);
+      }
+    }
+  }
+
+  List<LyricLine> parseLyric(String rawLyric) {
+    final regex = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2})\](.*)');
+    final lines = <LyricLine>[];
+
+    for (var line in rawLyric.split('\n')) {
+      final match = regex.firstMatch(line);
+      if (match != null) {
+        final minutes = int.parse(match.group(1)!);
+        final seconds = int.parse(match.group(2)!);
+        final hundredths = int.parse(match.group(3)!);
+        final text = match.group(4)!.trim();
+        
+        if (text.isNotEmpty) { // Chỉ thêm dòng có text
+          final time = Duration(
+            minutes: minutes,
+            seconds: seconds,
+            milliseconds: hundredths * 10,
+          );
+          lines.add(LyricLine(time: time, text: text));
+        }
+      }
+    }
+    return lines;
+  }
+
+  Future<void> _loadLyric([String? songId]) async {
+    setState(() => _isLoadingLyric = true);
+    try {
+      final idToUse = songId ?? widget.currentSong.id ?? _lastLoadedSongId ?? '';
+      if (idToUse.isEmpty) throw Exception('Song ID missing');
+
+      final lyric = await ApiService.fetchLyricBySongId(idToUse);
+      final parsedLines = parseLyric(lyric);
+      
+      setState(() {
+        _lyricLines = parsedLines;
+        _currentLyricIndex = -1;
+        _isLoadingLyric = false;
+      });
+    } catch (e) {
+      setState(() {
+        _lyricLines = [LyricLine(time: Duration.zero, text: "Chưa có lời bài hát")];
+        _isLoadingLyric = false;
+      });
+    }
+  }
+
+  String? _lastLoadedSongId;
+
+  Future<void> _reloadLyricIfChanged(String newSongId) async {
+    if (_lastLoadedSongId == newSongId) return;
+    _lastLoadedSongId = newSongId;
+
+    setState(() {
+      _lyricLines = [];
+      _currentLyricIndex = -1;
+      _isLoadingLyric = true;
+    });
+
+    await _loadLyric(newSongId);
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _lyricScrollController.dispose(); // Dispose scroll controller
     super.dispose();
   }
 
@@ -132,6 +232,36 @@ class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderSt
     final minutes = twoDigits(duration.inMinutes.remainder(60));
     final seconds = twoDigits(duration.inSeconds.remainder(60));
     return '$minutes:$seconds';
+  }
+
+  // Method để scroll mượt mà đến dòng hiện tại
+  void _scrollToCurrentLyric(int index) {
+    if (!_lyricScrollController.hasClients) return;
+    
+    // Đợi một chút để đảm bảo layout đã hoàn tất
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_lyricScrollController.hasClients) return;
+      
+      // Tính toán vị trí scroll để dòng hiện tại ở vị trí thích hợp
+      // Mỗi item có: padding vertical 12*2=24, margin vertical 6*2=12, text ~22 = ~58px
+      final double itemHeight = 58.0; 
+      final double containerHeight = 400.0;
+      
+      // Scroll để dòng hiện tại ở vị trí 1/4 từ trên xuống
+      final double targetOffset = (index * itemHeight) - (containerHeight * 0.25);
+      
+      final double clampedOffset = targetOffset.clamp(
+        0.0, 
+        _lyricScrollController.position.maxScrollExtent
+      );
+      
+      // Scroll mượt mà
+      _lyricScrollController.animateTo(
+        clampedOffset,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   @override
@@ -213,13 +343,10 @@ class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderSt
                                   final displayName = (tag is Map && tag['name'] != null)
                                       ? tag['name'] as String
                                       : (AudioPlayerService().currentSong?.name ?? widget.currentSong.name ?? 'Unknown');
-                                  final displayFileName = (tag is Map && tag['filePath'] != null)
-                                      ? (tag['filePath'] as String)
-                                      : (AudioPlayerService().currentSong?.fileName ?? widget.currentSong.fileName ?? '');
                                   final rawImage = (tag is Map && tag['imageUrl'] != null)
                                       ? tag['imageUrl'] as String
                                       : (AudioPlayerService().currentSong?.imageUrl ?? widget.currentSong.imageUrl ?? '');
-                                  final imageUrl = rawImage.startsWith('http') ? rawImage : (rawImage.isNotEmpty ? 'http://192.168.1.7:5289$rawImage' : rawImage);
+                                  final imageUrl = rawImage.startsWith('http') ? rawImage : (rawImage.isNotEmpty ? 'https://willing-baltimore-brunette-william.trycloudflare.com$rawImage' : rawImage);
 
                                   return Column(
                                     children: [
@@ -453,7 +580,37 @@ class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderSt
                                       IconButton(
                                         icon: const Icon(Icons.devices),
                                         color: Colors.white54,
-                                        onPressed: () {},
+                                        onPressed: () async {
+                                          final signalRService = SignalRService();
+                                          final devices = await signalRService.getAvailableDevices();
+                                          
+                                          if (!mounted) return;
+                                          
+                                          showDialog(
+                                            context: context,
+                                            builder: (context) => DevicesDialog(
+                                              currentDeviceId: signalRService.currentDeviceId ?? 'unknown',
+                                              currentDeviceName: signalRService.currentDeviceName ?? 'Thiết bị này',
+                                              availableDevices: devices.map((d) => {
+                                                'deviceId': d.deviceId,
+                                                'deviceName': d.deviceName,
+                                                'isActive': d.isActive,
+                                              }).toList(),
+                                              onDeviceSelected: (deviceId) async {
+                                                // Chuyển phát nhạc sang thiết bị được chọn
+                                                final currentSong = AudioPlayerService().currentSong;
+                                                if (currentSong != null && currentSong.id != null) {
+                                                  await signalRService.transferPlayback(
+                                                    deviceId,
+                                                    currentSong.id!,
+                                                    widget.audioPlayer.position,
+                                                    widget.audioPlayer.playing,
+                                                  );
+                                                }
+                                              },
+                                            ),
+                                          );
+                                        },
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.share),
@@ -501,8 +658,8 @@ class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderSt
                                           .asMap()
                                           .entries
                                           .where((e) => e.key > currentIndex)
+                                          .take(3)
                                           .toList();
-
                                       return ListView.builder(
                                         shrinkWrap: true,
                                         physics: const NeverScrollableScrollPhysics(),
@@ -514,7 +671,7 @@ class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderSt
                                           final img = songTag?['imageUrl'] ?? '';
                                           final imageUrl = img.startsWith('http')
                                               ? img
-                                              : (img.isNotEmpty ? 'http://192.168.1.7:5289$img' : '');
+                                              : (img.isNotEmpty ? 'https://willing-baltimore-brunette-william.trycloudflare.com$img' : '');
 
                                           return ListTile(
                                             contentPadding: const EdgeInsets.symmetric(horizontal: 24),
@@ -549,6 +706,140 @@ class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderSt
                                     },
                                   ),
 
+                                  const SizedBox(height: 30),
+
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 24),
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        'LỜI BÀI HÁT',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                                    padding: const EdgeInsets.all(16),
+                                    height: 400,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.05),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: _isLoadingLyric
+                                        ? const Center(
+                                            child: CircularProgressIndicator(color: Colors.white),
+                                          )
+                                        : _lyricLines.isEmpty
+                                            ? const Center(
+                                                child: Text(
+                                                  'Chưa có lời bài hát',
+                                                  style: TextStyle(
+                                                    color: Colors.white54,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              )
+                                            : NotificationListener<ScrollNotification>(
+                                                onNotification: (notification) {
+                                                  // Tắt auto-scroll khi user scroll thủ công
+                                                  if (notification is UserScrollNotification) {
+                                                    setState(() => _autoScroll = false);
+                                                  }
+                                                  return false;
+                                                },
+                                                child: Stack(
+                                                  children: [
+                                                    ListView.builder(
+                                                      controller: _lyricScrollController,
+                                                      itemCount: _lyricLines.length,
+                                                      padding: const EdgeInsets.only(top: 0, bottom: 180), // Xóa padding top, chỉ giữ bottom để scroll được
+                                                      itemBuilder: (context, index) {
+                                                        final lyricLine = _lyricLines[index];
+                                                        final isActive = index == _currentLyricIndex;
+                                                        final isPast = index < _currentLyricIndex;
+                                                        final distance = (index - _currentLyricIndex).abs();
+                                                        
+                                                        // Tính opacity dựa trên khoảng cách với dòng hiện tại
+                                                        double opacity = 1.0;
+                                                        if (!isActive) {
+                                                          opacity = isPast 
+                                                              ? 0.3 
+                                                              : (1.0 - (distance * 0.15)).clamp(0.4, 1.0);
+                                                        }
+                                                        
+                                                        return GestureDetector(
+                                                          onTap: () {
+                                                            // Seek đến thời gian của dòng được click
+                                                            widget.audioPlayer.seek(lyricLine.time);
+                                                            setState(() => _autoScroll = true);
+                                                          },
+                                                          child: AnimatedContainer(
+                                                            duration: const Duration(milliseconds: 300),
+                                                            curve: Curves.easeInOut,
+                                                            padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                                                            margin: const EdgeInsets.symmetric(vertical: 6.0),
+                                                            decoration: BoxDecoration(
+                                                              borderRadius: BorderRadius.circular(8),
+                                                              color: Colors.transparent, // Xóa nền xanh
+                                                            ),
+                                                            child: AnimatedDefaultTextStyle(
+                                                              duration: const Duration(milliseconds: 300),
+                                                              curve: Curves.easeInOut,
+                                                              style: TextStyle(
+                                                                color: isActive
+                                                                    ? Colors.greenAccent
+                                                                    : Colors.white.withOpacity(opacity),
+                                                                fontSize: isActive ? 22 : 16,
+                                                                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                                                                height: 1.5,
+                                                                shadows: isActive ? [
+                                                                  Shadow(
+                                                                    color: Colors.greenAccent.withOpacity(0.5),
+                                                                    blurRadius: 10,
+                                                                  ),
+                                                                ] : [],
+                                                              ),
+                                                              child: Text(
+                                                                lyricLine.text,
+                                                                textAlign: TextAlign.center,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                                    
+                                                    // Nút để bật lại auto-scroll
+                                                    if (!_autoScroll)
+                                                      Positioned(
+                                                        bottom: 16,
+                                                        right: 16,
+                                                        child: FloatingActionButton.small(
+                                                          backgroundColor: Colors.greenAccent,
+                                                          onPressed: () {
+                                                            setState(() => _autoScroll = true);
+                                                            if (_currentLyricIndex >= 0) {
+                                                              _scrollToCurrentLyric(_currentLyricIndex);
+                                                            }
+                                                          },
+                                                          child: const Icon(
+                                                            Icons.my_location,
+                                                            color: Colors.black,
+                                                            size: 20,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                  ),
                                   const SizedBox(height: 30),
                                 ],
                               ),

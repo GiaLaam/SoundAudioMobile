@@ -37,7 +37,7 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal();
 
-  static const String baseUrl = 'http://192.168.1.7:5289/api/user';
+  static const String baseUrl = 'https://willing-baltimore-brunette-william.trycloudflare.com/api/user';
   User? _currentUser;
   final StreamController<User?> _userController = StreamController.broadcast();
 
@@ -92,7 +92,7 @@ class AuthService {
         Uri.parse('$baseUrl/register'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'username': username,
+          'fullName': username,
           'email': email,
           'password': password,
         }),

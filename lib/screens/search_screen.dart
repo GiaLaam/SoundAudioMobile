@@ -95,7 +95,7 @@ class _SearchScreenState extends State<SearchScreen> {
                             itemBuilder: (context, index) {
                               final song = _searchResults[index];
                               final imageUrl =
-                                  "http://192.168.1.7:5289${song.imageUrl ?? ''}";
+                                  "https://willing-baltimore-brunette-william.trycloudflare.com${song.imageUrl ?? ''}";
 
                               return ListTile(
                                 contentPadding: const EdgeInsets.symmetric(vertical: 4),
@@ -120,14 +120,10 @@ class _SearchScreenState extends State<SearchScreen> {
                                   style: const TextStyle(color: Colors.white),
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                subtitle: Text(
-                                  song.fileName ?? "Unknown artist",
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
                                 onTap: () async {
                                   await player.setPlaylist(_searchResults);
                                   await player.playSong(song);
-                                },
+                                }
                               );
                             },
                           ),

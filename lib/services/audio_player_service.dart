@@ -1,6 +1,7 @@
 import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 import 'music_api_service.dart';
+import 'signalr_service.dart';
 
 /// AudioPlayerService hoàn chỉnh
 /// - playlist via ConcatenatingAudioSource
@@ -15,6 +16,9 @@ class AudioPlayerService {
 
   // internal player
   final AudioPlayer _player = AudioPlayer();
+  
+  // SignalR service
+  final SignalRService _signalR = SignalRService();
 
   // playlist dữ liệu (models)
   List<Song> _songs = [];
@@ -33,10 +37,36 @@ class AudioPlayerService {
   Future<void> init() async {
     await _player.setVolume(1.0);
 
+    // Khởi tạo SignalR
+    await _signalR.initialize();
+    
+    // Lắng nghe lệnh dừng từ thiết bị khác
+    _signalR.stopPlaybackStream.listen((deviceId) {
+      print('🛑 Received stop command from device: $deviceId');
+      pause();
+    });
+
+    // 🆕 Lắng nghe khi thiết bị khác BÁT ĐẦU PHÁT nhạc
+    _signalR.playbackInfoStream.listen((info) {
+      final songInfo = info['songInfo'] as Map<String, dynamic>?;
+      final songName = songInfo?['songName'] ?? 'Unknown';
+      final deviceName = songInfo?['device'] ?? 'Another device';
+      
+      print('🎵 Another device started playing:');
+      print('   Device: $deviceName');
+      print('   Song: $songName');
+      print('   → Auto-pausing this device');
+      
+      // Tự động dừng phát trên thiết bị này
+      pause();
+    });
+
     // cập nhật playing stream
     _player.playingStream.listen((playing) {
       isPlayingStream.add(playing);
       print('playingStream -> playing=$playing');
+      // ❌ KHÔNG gọi notifyPlaybackStarted() ở đây
+      // Việc thông báo đã được xử lý trong playSong() và play() với đầy đủ thông tin bài hát
     });
 
     // khi currentIndex thay đổi
@@ -120,11 +150,11 @@ class AudioPlayerService {
       if (rawImage.startsWith('http')) {
         imageFull = rawImage;
       } else if (rawImage.startsWith('/')) {
-        imageFull = 'http://192.168.1.7:5289$rawImage';
+        imageFull = 'https://willing-baltimore-brunette-william.trycloudflare.com$rawImage';
       } else if (rawImage.isEmpty) {
         imageFull = '';
       } else {
-        imageFull = 'http://192.168.1.7:5289/$rawImage';
+        imageFull = 'https://willing-baltimore-brunette-william.trycloudflare.com/$rawImage';
       }
 
       print(' - song id=${s.id}, name=${s.name}, url=$url, image=$imageFull');
@@ -159,6 +189,14 @@ class AudioPlayerService {
   Future<void> playSong(Song song, {List<Song>? songsAsPlaylist}) async {
     try {
       print('AudioPlayerService.playSong called for song id=${song.id}, name=${song.name}');
+
+      // Thông báo cho server trước khi phát - GỬI KÈM THÔNG TIN BÀI HÁT
+      await _signalR.notifyPlaybackStarted(
+        songId: song.id.toString(),
+        songName: song.name ?? song.fileName ?? 'Unknown',
+        artistName: '', // Song model không có artistName
+        imageUrl: song.imageUrl ?? '',
+      );
 
       // If a new playlist is provided
       if (songsAsPlaylist != null && songsAsPlaylist.isNotEmpty) {
@@ -210,6 +248,17 @@ class AudioPlayerService {
 
   Future<void> play() async {
     try {
+      // Thông báo cho server trước khi phát - GỬI THÔNG TIN BÀI HIỆN TẠI
+      final currentSong = currentSongStream.valueOrNull;
+      if (currentSong != null) {
+        await _signalR.notifyPlaybackStarted(
+          songId: currentSong.id.toString(),
+          songName: currentSong.name ?? currentSong.fileName ?? 'Unknown',
+          artistName: '', // Song model không có artistName
+          imageUrl: currentSong.imageUrl ?? '',
+        );
+      }
+      
       // Always attempt to play — avoid guarding on processingState which may be stale
       print('AudioPlayerService.play called. processingState=${_player.processingState}, playing=${_player.playing}');
       await _player.play();
@@ -309,7 +358,7 @@ class AudioPlayerService {
   /// Build full url from Song (adjust base if needed)
   String _buildUrlFromSong(Song s) {
     // song.filePath should already be like "/api/music/xxx.mp3"
-    final base = 'http://192.168.1.7:5289';
+    final base = 'https://willing-baltimore-brunette-william.trycloudflare.com';
     final path = s.filePath ?? s.fileName ?? '';
     if (path.startsWith('http')) return path;
     if (path.startsWith('/')) return base + path;
@@ -320,5 +369,6 @@ class AudioPlayerService {
     await _player.dispose();
     await currentSongStream.close();
     await isPlayingStream.close();
+    _signalR.dispose();
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import 'bottom_nav_screen.dart';
+import '../widgets/app_scaffold.dart';
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -20,6 +21,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -28,7 +37,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const Text("Đăng ký", style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
             const SizedBox(height: 30),
 
-            _buildInput(_usernameController, "Tên đăng nhập"),
+            _buildInput(_usernameController, "Họ và tên"),
             const SizedBox(height: 16),
             _buildInput(_emailController, "Email"),
             const SizedBox(height: 16),
@@ -46,22 +55,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       _passwordController.text,
                     );
                     
+                    if (mounted) setState(() => _isLoading = false);
+                    
                     if (success && mounted) {
-                      // If registration is successful, navigate to home screen and clear navigation stack
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (context) => const BottomNavScreen()),
-                        (route) => false,
+                      // Đóng màn hình register
+                      Navigator.pop(context);
+                      
+                      // Chuyển về tab Trang chủ
+                      AppScaffold.scaffoldKey.currentState?.switchToHomeTab();
+                      
+                      // Hiển thị thông báo
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Đăng ký thành công!'),
+                          backgroundColor: Colors.green,
+                          duration: Duration(seconds: 2),
+                        ),
                       );
                     } else {
                       // Show error message if registration fails
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Đăng ký thất bại. Vui lòng thử lại.')),
+                          const SnackBar(
+                            content: Text('Đăng ký thất bại. Vui lòng thử lại.'),
+                            backgroundColor: Colors.red,
+                          ),
                         );
                       }
-                    }
-                    if (mounted) {
-                      setState(() => _isLoading = false);
                     }
                   },
               style: ElevatedButton.styleFrom(
@@ -78,6 +98,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   )
                 : const Text("Đăng ký", style: TextStyle(color: Colors.black, fontSize: 16)),
+            ),
+            
+            const SizedBox(height: 20),
+
+            // Login Button
+            TextButton(
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              },
+              child: const Text(
+                "Đã có tài khoản? Đăng nhập ngay",
+                style: TextStyle(color: Colors.white70),
+              ),
             ),
           ],
         ),

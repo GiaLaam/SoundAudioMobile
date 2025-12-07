@@ -4,6 +4,8 @@ import '../services/music_api_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/playlist_service.dart';
 import '../services/auth_service.dart';
+import '../services/album_service.dart';
+import 'album_detail_screen.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -15,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   Future<List<Song>>? _songsFuture;
+  Future<List<Album>>? _albumsFuture;
   final AudioPlayerService _audioService = AudioPlayerService();
   final AuthService _authService = AuthService();
 
@@ -22,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _songsFuture = ApiService.fetchSongs();
+    _albumsFuture = AlbumService.fetchAlbums();
     _audioService.init();
   }
 
@@ -132,7 +136,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.pop(context);
 
               try {
-                final playlist = await PlaylistService.createPlaylist(name, token, song.id!);
+                final playlist = await PlaylistService.createPlaylist(
+                  name,
+                  token,
+                  songId: song.id!,
+                );
                 await _addSongToPlaylist(song, playlist.id, token);
               } catch (e) {
                 if (!mounted) return;
@@ -165,7 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF121212),
+      backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
         title: const Text(
           "SoundAudio",
@@ -175,72 +183,248 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
       ),
       body: SafeArea(
-        child: FutureBuilder<List<Song>>(
-          future: _songsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
-            } else if (snapshot.hasError) {
-              return Center(
-                child: Text("Lỗi tải nhạc: ${snapshot.error}", style: const TextStyle(color: Colors.white)),
-              );
-            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(
-                child: Text("Không có bài hát nào.", style: TextStyle(color: Colors.white)),
-              );
-            }
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Section: Albums
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  "Albums",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              
+              // Albums Grid
+              FutureBuilder<List<Album>>(
+                future: _albumsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: CircularProgressIndicator(color: Colors.greenAccent),
+                      ),
+                    );
+                  } else if (snapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          "Lỗi tải albums: ${snapshot.error}",
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                      ),
+                    );
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text(
+                          "Không có album nào.",
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      ),
+                    );
+                  }
 
-            final songs = snapshot.data!;
-            return ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              itemCount: songs.length,
-              itemBuilder: (context, index) {
-                final song = songs[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
+                  final albums = snapshot.data!;
+                  return SizedBox(
+                    height: 220,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: albums.length,
+                      itemBuilder: (context, index) {
+                        final album = albums[index];
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AlbumDetailScreen(
+                                  albumId: album.id,
+                                  albumName: album.name,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 160,
+                            margin: const EdgeInsets.only(right: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Album cover
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: album.imageUrl != null && album.imageUrl!.isNotEmpty
+                                      ? Image.network(
+                                          album.imageUrl!.startsWith('http')
+                                              ? album.imageUrl!
+                                              : 'https://willing-baltimore-brunette-william.trycloudflare.com${album.imageUrl}',
+                                          width: 160,
+                                          height: 160,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Container(
+                                            width: 160,
+                                            height: 160,
+                                            color: Colors.grey[850],
+                                            child: const Icon(Icons.album, color: Colors.white54, size: 60),
+                                          ),
+                                        )
+                                      : Container(
+                                          width: 160,
+                                          height: 160,
+                                          color: Colors.grey[850],
+                                          child: const Icon(Icons.album, color: Colors.white54, size: 60),
+                                        ),
+                                ),
+                                const SizedBox(height: 8),
+                                // Album name
+                                Text(
+                                  album.name,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (album.songCount != null)
+                                  Text(
+                                    '${album.songCount} bài hát',
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              // Section: All Songs
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  "Tất cả bài hát",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(12),
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        "http://192.168.1.7:5289${song.imageUrl}",
-                        width: 60,
-                        height: 60,
-                        fit: BoxFit.cover,
+                ),
+              ),
+
+              // Songs List
+              FutureBuilder<List<Song>>(
+                future: _songsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: CircularProgressIndicator(color: Colors.greenAccent),
                       ),
-                    ),
-                    title: Text(
-                      song.name ?? "Không rõ tên",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(FontAwesomeIcons.plus, color: Colors.greenAccent),
-                      onPressed: () => _showPlaylistSelection(song),
-                    ),
-                    onTap: () async {
-                      try {
-                        await _audioService.playSong(song, songsAsPlaylist: songs);
-                      } catch (e) {
-                        print('HomeScreen: playSong error: $e');
-                      }
+                    );
+                  } else if (snapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          "Lỗi tải nhạc: ${snapshot.error}",
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    );
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text(
+                          "Không có bài hát nào.",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    );
+                  }
+
+                  final songs = snapshot.data!;
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    itemCount: songs.length,
+                    itemBuilder: (context, index) {
+                      final song = songs[index];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.all(12),
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              "https://willing-baltimore-brunette-william.trycloudflare.com${song.imageUrl}",
+                              width: 60,
+                              height: 60,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                width: 60,
+                                height: 60,
+                                color: Colors.grey[850],
+                                child: const Icon(Icons.music_note, color: Colors.white54),
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            song.name ?? "Không rõ tên",
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(FontAwesomeIcons.plus, color: Colors.greenAccent),
+                            onPressed: () => _showPlaylistSelection(song),
+                          ),
+                          onTap: () async {
+                            try {
+                              await _audioService.playSong(song, songsAsPlaylist: songs);
+                            } catch (e) {
+                              print('HomeScreen: playSong error: $e');
+                            }
+                          },
+                        ),
+                      );
                     },
-                  ),
-                );
-              },
-            );
-          },
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

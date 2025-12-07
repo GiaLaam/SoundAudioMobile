@@ -1,11 +1,9 @@
-import 'dart:developer';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/signalr_service.dart';
+import '../widgets/app_scaffold.dart';
 import 'register_screen.dart';
-import 'bottom_nav_screen.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -26,6 +24,14 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -100,10 +106,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       if (mounted) setState(() => _isLoading = false);
 
                       if (success && mounted) {
-                        Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(
-                              builder: (context) => const BottomNavScreen()),
-                          (route) => false,
+                        // Kết nối SignalR sau khi đăng nhập thành công
+                        await SignalRService().connect();
+                        
+                        // Đóng màn hình login
+                        Navigator.pop(context);
+                        
+                        // Chuyển về tab Trang chủ
+                        AppScaffold.scaffoldKey.currentState?.switchToHomeTab();
+                        
+                        // Hiển thị thông báo
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Đăng nhập thành công!'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 2),
+                          ),
                         );
                       } else if (mounted) {
                         setState(() => _error = "Sai email hoặc mật khẩu");
@@ -133,10 +151,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
             // Register Button
             TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const RegisterScreen()),
-              ),
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                );
+              },
               child: const Text(
                 "Chưa có tài khoản? Đăng ký ngay",
                 style: TextStyle(color: Colors.white70),

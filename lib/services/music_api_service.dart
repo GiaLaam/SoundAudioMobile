@@ -50,7 +50,7 @@ class Song {
 }
 
 class ApiService {
-  static const baseUrl = "http://192.168.1.7:5289/api/music"; // chỉnh theo IP nếu test trên iPhone
+  static const baseUrl = "https://willing-baltimore-brunette-william.trycloudflare.com/api/music";
 
   static Future<List<Song>> fetchSongs() async {
     final response = await http.get(Uri.parse(baseUrl));
@@ -59,6 +59,52 @@ class ApiService {
       return data.map((e) => Song.fromJson(e)).toList();
     } else {
       throw Exception('Failed to load songs');
+    }
+  }
+
+  /// Lấy thông tin chi tiết một bài hát theo ID
+  static Future<Song?> fetchSongById(String songId) async {
+    try {
+      print('🔄 Đang tải thông tin bài hát: $songId');
+      final url = '$baseUrl/$songId';
+      print('📡 URL: $url');
+      
+      final response = await http.get(Uri.parse(url));
+      
+      print('📡 Response status: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ Đã tải thông tin bài hát: ${data['nameSong'] ?? data['NameSong']}');
+        return Song.fromJson(data);
+      } else if (response.statusCode == 404) {
+        print('⚠️ Không tìm thấy bài hát với ID: $songId');
+        print('⚠️ Có thể bài hát đã bị xóa hoặc musicId không đúng');
+        return null;
+      } else {
+        print('❌ Lỗi: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Lỗi khi tải bài hát: $e');
+      return null;
+    }
+  }
+
+  static Future<String> fetchLyricBySongId(String songId) async {
+    final response = await http.get(
+      Uri.parse('https://willing-baltimore-brunette-william.trycloudflare.com/api/lyric/by-song/$songId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['content'] ?? 'Chưa có lời bài hát';
+    } else if (response.statusCode == 404) {
+      return "Chưa có lời bài hát";
+    } else {
+      throw Exception ('Không thể tải lời bài hát (mã ${response.statusCode})');
     }
   }
 }
