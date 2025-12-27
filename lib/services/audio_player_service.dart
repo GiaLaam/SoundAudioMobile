@@ -2,6 +2,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 import 'music_api_service.dart';
 import 'signalr_service.dart';
+import 'recently_played_service.dart';
+import 'dart:async';
 
 /// AudioPlayerService hoàn chỉnh
 /// - playlist via ConcatenatingAudioSource
@@ -33,6 +35,19 @@ class AudioPlayerService {
   final BehaviorSubject<Song?> currentSongStream = BehaviorSubject.seeded(null);
   final BehaviorSubject<bool> isPlayingStream = BehaviorSubject.seeded(false);
 
+  // Stream để thông báo khi bị dừng do thiết bị khác phát
+  final StreamController<Map<String, dynamic>> _devicePlaybackNotificationController = 
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get devicePlaybackNotificationStream => 
+      _devicePlaybackNotificationController.stream;
+
+  // Stream để broadcast remote position (cho UI hiển thị khi không phát)
+  final BehaviorSubject<Duration?> remotePositionStream = BehaviorSubject.seeded(null);
+  final BehaviorSubject<bool> isRemotePlayingStream = BehaviorSubject.seeded(false);
+  
+  // Timer để gửi sync position
+  Timer? _syncTimer;
+
   // Khởi tạo (gọi một lần khi app start)
   Future<void> init() async {
     await _player.setVolume(1.0);
@@ -41,9 +56,23 @@ class AudioPlayerService {
     await _signalR.initialize();
     
     // Lắng nghe lệnh dừng từ thiết bị khác
-    _signalR.stopPlaybackStream.listen((deviceId) {
-      print('🛑 Received stop command from device: $deviceId');
+    _signalR.stopPlaybackStream.listen((data) {
+      final deviceId = data['deviceId'] ?? 'unknown';
+      final deviceName = data['deviceName'] ?? 'Another device';
+      final songName = data['songName'] ?? '';
+      
+      print('🛑 Received stop command from device: $deviceId ($deviceName)');
+      
+      // Dừng phát nhạc
       pause();
+      
+      // Gửi thông báo để UI hiển thị
+      _devicePlaybackNotificationController.add({
+        'deviceId': deviceId,
+        'deviceName': deviceName,
+        'songName': songName,
+        'message': 'Đang phát trên $deviceName',
+      });
     });
 
     // 🆕 Lắng nghe khi thiết bị khác BÁT ĐẦU PHÁT nhạc
@@ -59,14 +88,136 @@ class AudioPlayerService {
       
       // Tự động dừng phát trên thiết bị này
       pause();
+      
+      // Gửi thông báo để UI hiển thị
+      _devicePlaybackNotificationController.add({
+        'deviceName': deviceName,
+        'songName': songName,
+        'message': 'Đang phát trên $deviceName',
+      });
+    });
+
+    // 🆕 Lắng nghe khi được yêu cầu phát nhạc từ thiết bị khác (transfer playback)
+    _signalR.startPlaybackRemoteStream.listen((data) async {
+      final songId = data['songId'] as String?;
+      final positionMs = data['positionMs'] as int? ?? 0;
+      final shouldPlay = data['isPlaying'] as bool? ?? true;
+      final sourceDevice = data['sourceDevice'] as String? ?? 'Another device';
+      final remoteSongName = data['songName'] as String? ?? '';
+      final remoteImageUrl = data['imageUrl'] as String? ?? '';
+      
+      print('🎵 Received StartPlaybackRemote:');
+      print('   Song ID: $songId');
+      print('   Position: ${positionMs}ms');
+      print('   Should play: $shouldPlay');
+      print('   From: $sourceDevice');
+      print('   SongName: $remoteSongName');
+      print('   ImageUrl: $remoteImageUrl');
+      
+      if (songId != null && songId.isNotEmpty) {
+        try {
+          Song? song;
+          bool foundInCurrentPlaylist = false;
+          
+          // Kiểm tra xem bài hát có trong playlist hiện tại không
+          if (_songs.isNotEmpty) {
+            final idx = _songs.indexWhere((s) => s.id == songId);
+            if (idx != -1) {
+              song = _songs[idx];
+              foundInCurrentPlaylist = true;
+              print('   Found song in current playlist at index $idx');
+              
+              // Seek đến bài hát đó trong playlist
+              await _player.seek(Duration(milliseconds: positionMs), index: idx);
+            }
+          }
+          
+          // Nếu không có trong playlist, fetch tất cả bài hát từ API
+          if (song == null) {
+            print('   Song not in current playlist, fetching all songs from API...');
+            final allSongs = await ApiService.fetchSongs();
+            
+            // Tìm bài hát trong danh sách
+            final idx = allSongs.indexWhere((s) => s.id == songId);
+            if (idx != -1) {
+              song = allSongs[idx];
+              
+              // Cập nhật imageUrl từ remote nếu cần
+              if (remoteImageUrl.isNotEmpty && (song!.imageUrl == null || song!.imageUrl!.isEmpty)) {
+                allSongs[idx] = Song(
+                  id: song!.id,
+                  name: song!.name,
+                  fileName: song!.fileName,
+                  filePath: song!.filePath,
+                  imageUrl: remoteImageUrl,
+                  duration: song!.duration,
+                );
+                song = allSongs[idx];
+              }
+              
+              // Set playlist với TẤT CẢ bài hát để next/prev hoạt động
+              await setPlaylist(allSongs, startIndex: idx);
+              
+              // Seek đến vị trí trong bài
+              if (positionMs > 0) {
+                await _player.seek(Duration(milliseconds: positionMs));
+              }
+              
+              print('   ✅ Set playlist with ${allSongs.length} songs, starting at index $idx');
+            } else {
+              // Không tìm thấy, phát bài đầu tiên
+              print('   ⚠️ Song not found in API, playing first song');
+              song = allSongs.first;
+              await setPlaylist(allSongs);
+            }
+          }
+          
+          // Phát hoặc dừng tùy theo yêu cầu
+          if (shouldPlay) {
+            await _player.play();
+            // Thông báo server rằng thiết bị này đang phát
+            await _signalR.notifyPlaybackStarted(
+              songId: song.id,
+              songName: song.name ?? remoteSongName,
+              imageUrl: song.imageUrl ?? remoteImageUrl,
+            );
+          } else {
+            await _player.pause();
+          }
+          
+          print('✅ Started playing from remote request (foundInPlaylist: $foundInCurrentPlaylist)');
+        } catch (e) {
+          print('❌ Error starting playback from remote: $e');
+        }
+      }
+    });
+
+    // Lắng nghe đồng bộ vị trí từ thiết bị khác
+    _signalR.positionSyncStream.listen((data) {
+      final positionMs = data['positionMs'] as int? ?? 0;
+      final isPlaying = data['isPlaying'] as bool? ?? false;
+      
+      // Chỉ cập nhật nếu thiết bị này KHÔNG đang phát
+      if (!_player.playing) {
+        remotePositionStream.add(Duration(milliseconds: positionMs));
+        isRemotePlayingStream.add(isPlaying);
+      }
     });
 
     // cập nhật playing stream
     _player.playingStream.listen((playing) {
       isPlayingStream.add(playing);
       print('playingStream -> playing=$playing');
-      // ❌ KHÔNG gọi notifyPlaybackStarted() ở đây
-      // Việc thông báo đã được xử lý trong playSong() và play() với đầy đủ thông tin bài hát
+      
+      // Bắt đầu/dừng gửi sync position
+      if (playing) {
+        _startSyncTimer();
+        // Reset remote position khi bắt đầu phát
+        remotePositionStream.add(null);
+        isRemotePlayingStream.add(false);
+      } else {
+        _stopSyncTimer();
+      }
     });
 
     // khi currentIndex thay đổi
@@ -150,11 +301,11 @@ class AudioPlayerService {
       if (rawImage.startsWith('http')) {
         imageFull = rawImage;
       } else if (rawImage.startsWith('/')) {
-        imageFull = 'https://willing-baltimore-brunette-william.trycloudflare.com$rawImage';
+        imageFull = 'https://difficulties-filled-did-announce.trycloudflare.com$rawImage';
       } else if (rawImage.isEmpty) {
         imageFull = '';
       } else {
-        imageFull = 'https://willing-baltimore-brunette-william.trycloudflare.com/$rawImage';
+        imageFull = 'https://difficulties-filled-did-announce.trycloudflare.com/$rawImage';
       }
 
       print(' - song id=${s.id}, name=${s.name}, url=$url, image=$imageFull');
@@ -197,6 +348,9 @@ class AudioPlayerService {
         artistName: '', // Song model không có artistName
         imageUrl: song.imageUrl ?? '',
       );
+
+      // Thêm vào lịch sử nghe gần đây
+      await RecentlyPlayedService().addSong(song);
 
       // If a new playlist is provided
       if (songsAsPlaylist != null && songsAsPlaylist.isNotEmpty) {
@@ -248,15 +402,28 @@ class AudioPlayerService {
 
   Future<void> play() async {
     try {
+      // Nếu có remote position và không đang phát, seek đến đó trước
+      final remotePos = remotePositionStream.valueOrNull;
+      if (remotePos != null && !_player.playing) {
+        print('AudioPlayerService.play: Seeking to remote position ${remotePos.inSeconds}s');
+        await _player.seek(remotePos);
+        remotePositionStream.add(null); // Reset sau khi seek
+      }
+      
       // Thông báo cho server trước khi phát - GỬI THÔNG TIN BÀI HIỆN TẠI
       final currentSong = currentSongStream.valueOrNull;
       if (currentSong != null) {
+        print('🎵 play(): Notifying server about playback start');
+        print('   Song: ${currentSong.name}');
         await _signalR.notifyPlaybackStarted(
           songId: currentSong.id.toString(),
           songName: currentSong.name ?? currentSong.fileName ?? 'Unknown',
           artistName: '', // Song model không có artistName
           imageUrl: currentSong.imageUrl ?? '',
         );
+        print('   ✅ Server notified');
+      } else {
+        print('⚠️ play(): No current song, cannot notify server');
       }
       
       // Always attempt to play — avoid guarding on processingState which may be stale
@@ -358,17 +525,41 @@ class AudioPlayerService {
   /// Build full url from Song (adjust base if needed)
   String _buildUrlFromSong(Song s) {
     // song.filePath should already be like "/api/music/xxx.mp3"
-    final base = 'https://willing-baltimore-brunette-william.trycloudflare.com';
+    final base = 'https://difficulties-filled-did-announce.trycloudflare.com';
     final path = s.filePath ?? s.fileName ?? '';
     if (path.startsWith('http')) return path;
     if (path.startsWith('/')) return base + path;
     return '$base/$path';
   }
 
+  // Bắt đầu gửi sync position mỗi 2 giây
+  void _startSyncTimer() {
+    _stopSyncTimer();
+    _syncTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      final currentSong = currentSongStream.valueOrNull;
+      if (currentSong != null && _player.playing) {
+        _signalR.syncPlaybackPosition(
+          currentSong.id ?? '',
+          _player.position.inMilliseconds,
+          true,
+        );
+      }
+    });
+  }
+
+  void _stopSyncTimer() {
+    _syncTimer?.cancel();
+    _syncTimer = null;
+  }
+
   Future<void> dispose() async {
+    _stopSyncTimer();
     await _player.dispose();
     await currentSongStream.close();
     await isPlayingStream.close();
+    await remotePositionStream.close();
+    await isRemotePlayingStream.close();
+    await _devicePlaybackNotificationController.close();
     _signalR.dispose();
   }
 }

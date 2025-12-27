@@ -40,17 +40,28 @@ class Song {
   factory Song.fromJson(Map<String, dynamic> json) {
     return Song(
       id: json['id'] ?? json['_id']?['\$oid'],
-      name: json['nameSong'] ?? json['NameSong'],
+      name: json['nameSong'] ?? json['NameSong'] ?? json['name'],
       fileName: json['fileName'] ?? json['FileName'],
       filePath: json['filePath'] ?? json['FilePath'],
       imageUrl: json['imageUrl'] ?? json['ImageUrl'],
       duration: json['duration'] ?? json['Duration'],
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'fileName': fileName,
+      'filePath': filePath,
+      'imageUrl': imageUrl,
+      'duration': duration,
+    };
+  }
 }
 
 class ApiService {
-  static const baseUrl = "https://willing-baltimore-brunette-william.trycloudflare.com/api/music";
+  static const baseUrl = "https://difficulties-filled-did-announce.trycloudflare.com/api/music";
 
   static Future<List<Song>> fetchSongs() async {
     final response = await http.get(Uri.parse(baseUrl));
@@ -94,7 +105,7 @@ class ApiService {
 
   static Future<String> fetchLyricBySongId(String songId) async {
     final response = await http.get(
-      Uri.parse('https://willing-baltimore-brunette-william.trycloudflare.com/api/lyric/by-song/$songId'),
+      Uri.parse('https://difficulties-filled-did-announce.trycloudflare.com/api/lyric/by-song/$songId'),
       headers: {'Content-Type': 'application/json'},
     );
 

@@ -3,6 +3,7 @@ import '../services/playlist_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/auth_service.dart';
 import '../services/music_api_service.dart';
+import '../theme.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final String playlistId;
@@ -35,44 +36,21 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   Future<void> _loadPlaylistDetails() async {
     final user = _authService.currentUser;
-    if (user == null) {
-      print('❌ User chưa đăng nhập');
-      return;
-    }
+    if (user == null) return;
 
-    print('🔄 Đang tải chi tiết playlist ${widget.playlistId}...');
     setState(() => _isLoading = true);
 
     try {
-      final playlist =
-          await PlaylistService.fetchPlaylistDetails(widget.playlistId, user.token);
-      
-      print('✅ Đã nhận playlist:');
-      print('   - ID: ${playlist.id}');
-      print('   - Name: ${playlist.name}');
-      print('   - Songs count: ${playlist.songs.length}');
-      print('   - MusicIds count: ${playlist.musicIds.length}');
-      
-      if (playlist.songs.isNotEmpty) {
-        print('   - Danh sách bài hát:');
-        for (var song in playlist.songs) {
-          print('     • ${song.name} (ID: ${song.id})');
-        }
-      }
-      
+      final playlist = await PlaylistService.fetchPlaylistDetails(widget.playlistId, user.token);
       if (!mounted) return;
-
       setState(() {
         _songs = playlist.songs;
         _playlistName = playlist.name;
       });
-      
-      print('✅ UI đã cập nhật với ${_songs.length} bài hát');
     } catch (e) {
-      print('❌ Lỗi tải playlist chi tiết: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Lỗi tải playlist: $e"), backgroundColor: Colors.red),
+        SnackBar(content: Text("Lỗi tải playlist: $e"), backgroundColor: SpotifyTheme.error),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -83,46 +61,44 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     final user = _authService.currentUser;
     if (user == null) return;
 
-    final TextEditingController controller =
-        TextEditingController(text: _playlistName);
+    final controller = TextEditingController(text: _playlistName);
 
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Đổi tên playlist"),
+        backgroundColor: SpotifyTheme.surface,
+        title: Text("Đổi tên playlist", style: SpotifyTheme.headingSmall),
         content: TextField(
           controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: SpotifyTheme.textPrimary),
           decoration: const InputDecoration(hintText: "Nhập tên mới"),
         ),
         actions: [
           TextButton(
-            child: const Text("Hủy"),
+            child: Text("Hủy", style: TextStyle(color: SpotifyTheme.textSecondary)),
             onPressed: () => Navigator.pop(context),
           ),
-          ElevatedButton(
-            child: const Text("Lưu"),
+          TextButton(
+            child: const Text("Lưu", style: TextStyle(color: SpotifyTheme.primary)),
             onPressed: () async {
               final newName = controller.text.trim();
               if (newName.isEmpty) return;
-
-              Navigator.pop(context); // đóng dialog
-
+              Navigator.pop(context);
               try {
-                await PlaylistService.renamePlaylist(
-                    widget.playlistId, newName, user.token);
+                await PlaylistService.renamePlaylist(widget.playlistId, newName, user.token);
                 setState(() => _playlistName = newName);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text("Đổi tên thành công"),
-                      backgroundColor: Colors.green),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: const Text("Đổi tên thành công"), backgroundColor: SpotifyTheme.primary),
+                  );
+                }
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text("Lỗi đổi tên: $e"),
-                      backgroundColor: Colors.red),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Lỗi đổi tên: $e"), backgroundColor: SpotifyTheme.error),
+                  );
+                }
               }
             },
           ),
@@ -138,16 +114,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Xóa playlist"),
-        content: const Text("Bạn có chắc muốn xóa playlist này không?"),
+        backgroundColor: SpotifyTheme.surface,
+        title: Text("Xóa playlist", style: SpotifyTheme.headingSmall),
+        content: Text("Bạn có chắc muốn xóa playlist này không?", style: SpotifyTheme.bodyMedium),
         actions: [
           TextButton(
-            child: const Text("Hủy"),
+            child: Text("Hủy", style: TextStyle(color: SpotifyTheme.textSecondary)),
             onPressed: () => Navigator.pop(context, false),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text("Xóa"),
+          TextButton(
+            child: const Text("Xóa", style: TextStyle(color: SpotifyTheme.error)),
             onPressed: () => Navigator.pop(context, true),
           ),
         ],
@@ -157,21 +133,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     if (confirm == true) {
       try {
         await PlaylistService.deletePlaylist(widget.playlistId, user.token);
-
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("Đã xóa playlist"), backgroundColor: Colors.green),
+          SnackBar(content: const Text("Đã xóa playlist"), backgroundColor: SpotifyTheme.primary),
         );
-
-        // Quay về màn hình trước và refresh lại danh sách
         Navigator.pop(context, true);
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text("Lỗi xóa playlist: $e"),
-              backgroundColor: Colors.red),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Lỗi xóa playlist: $e"), backgroundColor: SpotifyTheme.error),
+          );
+        }
       }
     }
   }
@@ -179,73 +151,264 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(_playlistName, style: const TextStyle(color: Colors.white)),
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onSelected: (value) {
-              if (value == 'rename') {
-                _renamePlaylist();
-              } else if (value == 'delete') {
-                _deletePlaylist();
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'rename',
-                child: Text("Đổi tên"),
+      backgroundColor: SpotifyTheme.background,
+      body: CustomScrollView(
+        slivers: [
+          // Header
+          SliverAppBar(
+            expandedHeight: 280,
+            pinned: true,
+            backgroundColor: SpotifyTheme.background,
+            leading: IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.arrow_back, color: SpotifyTheme.textPrimary, size: 20),
               ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Text("Xóa"),
+              onPressed: () => Navigator.pop(context),
+            ),
+            actions: [
+              PopupMenuButton<String>(
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.more_vert, color: SpotifyTheme.textPrimary, size: 20),
+                ),
+                color: SpotifyTheme.surface,
+                onSelected: (value) {
+                  if (value == 'rename') _renamePlaylist();
+                  else if (value == 'delete') _deletePlaylist();
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'rename',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.edit, color: SpotifyTheme.textSecondary, size: 20),
+                        const SizedBox(width: 12),
+                        Text("Đổi tên", style: SpotifyTheme.bodyLarge),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.delete_outline, color: SpotifyTheme.error, size: 20),
+                        const SizedBox(width: 12),
+                        Text("Xóa", style: SpotifyTheme.bodyLarge.copyWith(color: SpotifyTheme.error)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF535353),
+                      SpotifyTheme.background,
+                    ],
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 40),
+                    // Playlist cover
+                    Container(
+                      width: 150,
+                      height: 150,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            SpotifyTheme.cardHover,
+                            SpotifyTheme.card,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.4),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.music_note, color: SpotifyTheme.textMuted, size: 64),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Playlist info
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_playlistName, style: SpotifyTheme.headingMedium),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 12,
+                        backgroundColor: SpotifyTheme.cardHover,
+                        child: Icon(Icons.person, size: 14, color: SpotifyTheme.textSecondary),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('Playlist của bạn', style: SpotifyTheme.bodyMedium),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('${_songs.length} bài hát', style: SpotifyTheme.bodySmall),
+                  const SizedBox(height: 16),
+                  // Action buttons
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.download_outlined, color: SpotifyTheme.textSecondary),
+                        onPressed: () {},
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.person_add_outlined, color: SpotifyTheme.textSecondary),
+                        onPressed: () {},
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.shuffle, color: SpotifyTheme.primary),
+                        onPressed: () {},
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _songs.isNotEmpty
+                            ? () async {
+                                await _audioService.setPlaylist(_songs);
+                                await _audioService.playSong(_songs[0]);
+                              }
+                            : null,
+                        child: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: const BoxDecoration(
+                            color: SpotifyTheme.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.play_arrow, color: SpotifyTheme.background, size: 32),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Songs list
+          if (_isLoading)
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator(color: SpotifyTheme.primary)),
+            )
+          else if (_songs.isEmpty)
+            SliverFillRemaining(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.music_off, size: 64, color: SpotifyTheme.textMuted),
+                    const SizedBox(height: 16),
+                    Text('Playlist trống', style: SpotifyTheme.bodyLarge),
+                    const SizedBox(height: 8),
+                    Text('Thêm bài hát để bắt đầu', style: SpotifyTheme.bodyMedium),
+                  ],
+                ),
+              ),
+            )
+          else
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => _buildSongTile(_songs[index]),
+                childCount: _songs.length,
+              ),
+            ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSongTile(Song song) {
+    final imageUrl = "https://difficulties-filled-did-announce.trycloudflare.com${song.imageUrl}";
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () async {
+          try {
+            await _audioService.playSong(song, songsAsPlaylist: _songs);
+          } catch (e) {
+            debugPrint("Lỗi playSong: $e");
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.network(
+                  imageUrl,
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 48,
+                    height: 48,
+                    color: SpotifyTheme.cardHover,
+                    child: const Icon(Icons.music_note, color: SpotifyTheme.textMuted),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.name ?? "Không rõ tên",
+                      style: SpotifyTheme.bodyLarge,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Nghệ sĩ', style: SpotifyTheme.bodySmall),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.more_vert, color: SpotifyTheme.textSecondary, size: 20),
+                onPressed: () {},
               ),
             ],
           ),
-        ],
+        ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _songs.isEmpty
-              ? const Center(
-                  child: Text('Playlist trống',
-                      style: TextStyle(color: Colors.white)),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  itemCount: _songs.length,
-                  itemBuilder: (context, index) {
-                    final song = _songs[index];
-                    return ListTile(
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          "https://willing-baltimore-brunette-william.trycloudflare.com${song.imageUrl}",
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      title: Text(song.name ?? "Không rõ tên",
-                          style: const TextStyle(color: Colors.white)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.play_arrow,
-                            color: Colors.greenAccent),
-                        onPressed: () async {
-                          try {
-                            await _audioService.playSong(song,
-                                songsAsPlaylist: _songs);
-                          } catch (e) {
-                            print("Lỗi playSong: $e");
-                          }
-                        },
-                      ),
-                    );
-                  },
-                ),
     );
   }
 }

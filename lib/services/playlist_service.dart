@@ -53,7 +53,7 @@ class Playlist {
 }
 
 class PlaylistService {
-  static const String baseUrl = 'https://willing-baltimore-brunette-william.trycloudflare.com/api/playlist';
+  static const String baseUrl = 'https://difficulties-filled-did-announce.trycloudflare.com/api/playlist';
   final AuthService _authService = AuthService();
 
   /// Lấy danh sách playlist của user

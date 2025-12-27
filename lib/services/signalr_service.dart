@@ -19,13 +19,21 @@ class SignalRService {
   // Có thể thay đổi endpoint nếu cần
   static const String _hubEndpoint = 'hubs/playback'; // Endpoint từ Web
   
-  // Stream để thông báo khi cần dừng phát nhạc
-  final StreamController<String> _stopPlaybackController = StreamController<String>.broadcast();
-  Stream<String> get stopPlaybackStream => _stopPlaybackController.stream;
+  // Stream để thông báo khi cần dừng phát nhạc (với thông tin device)
+  final StreamController<Map<String, dynamic>> _stopPlaybackController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get stopPlaybackStream => _stopPlaybackController.stream;
   
   // Stream để thông báo thiết bị khác đang phát bài gì
   final StreamController<Map<String, dynamic>> _playbackInfoController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get playbackInfoStream => _playbackInfoController.stream;
+
+  // Stream để nhận lệnh phát nhạc từ thiết bị khác (transfer playback)
+  final StreamController<Map<String, dynamic>> _startPlaybackRemoteController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get startPlaybackRemoteStream => _startPlaybackRemoteController.stream;
+
+  // Stream để nhận đồng bộ vị trí phát từ thiết bị khác
+  final StreamController<Map<String, dynamic>> _positionSyncController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get positionSyncStream => _positionSyncController.stream;
 
   // Callback đã xóa - sử dụng stream thay thế
 
@@ -102,14 +110,21 @@ class SignalRService {
       return;
     }
 
-    if (_isConnected && _hubConnection != null) {
-      print('✅ SignalR already connected');
-      return;
+    // Ngắt kết nối cũ nếu có
+    if (_hubConnection != null) {
+      print('🔄 SignalR: Disconnecting old connection...');
+      try {
+        await _hubConnection!.stop();
+      } catch (e) {
+        print('⚠️ Error stopping old connection: $e');
+      }
+      _hubConnection = null;
+      _isConnected = false;
     }
 
     try {
       // URL của SignalR Hub trên backend
-      final serverUrl = 'https://willing-baltimore-brunette-william.trycloudflare.com/$_hubEndpoint';
+      final serverUrl = 'https://difficulties-filled-did-announce.trycloudflare.com/$_hubEndpoint';
       
       print('🔄 Attempting to connect SignalR...');
       print('   Server: $serverUrl');
@@ -128,16 +143,64 @@ class SignalRService {
 
       // Lắng nghe sự kiện "StopPlayback" từ server
       _hubConnection!.on('StopPlayback', (arguments) {
+        print('📩 StopPlayback event received!');
+        print('   Arguments: $arguments');
+        print('   My deviceId: $_deviceId');
+        
         if (arguments != null && arguments.isNotEmpty) {
           final sendingDeviceId = arguments[0] as String;
           print('🛑 Received StopPlayback from device: $sendingDeviceId');
           
-          // Chỉ xử lý nếu không phải từ chính thiết bị này
-          if (sendingDeviceId != _deviceId) {
-            print('⏸️ Stopping playback on this device');
-            _stopPlaybackController.add(sendingDeviceId);
-          } else {
-            print('ℹ️ Ignoring StopPlayback from self');
+          // Xử lý tất cả - không cần kiểm tra deviceId vì server đã lọc
+          print('⏸️ Stopping playback on this device');
+          _stopPlaybackController.add({
+            'deviceId': sendingDeviceId,
+            'deviceName': 'Another device',
+          });
+        }
+      });
+
+      // Lắng nghe sự kiện "PausePlayback" từ server (có thêm thông tin device)
+      _hubConnection!.on('PausePlayback', (arguments) {
+        if (arguments != null && arguments.isNotEmpty) {
+          try {
+            final data = arguments[0] as Map<String, dynamic>;
+            final deviceName = data['deviceName'] ?? data['device'] ?? 'Another device';
+            final songName = data['songName'] ?? '';
+            final sourceDeviceId = data['sourceDeviceId'] ?? '';
+            
+            // Bỏ qua nếu từ chính thiết bị này
+            if (sourceDeviceId == _deviceId) return;
+            
+            print('🛑 Received PausePlayback:');
+            print('   Device: $deviceName');
+            print('   Song: $songName');
+            
+            _stopPlaybackController.add({
+              'deviceId': sourceDeviceId,
+              'deviceName': deviceName,
+              'songName': songName,
+              'reason': data['reason'] ?? 'Playing on another device',
+            });
+          } catch (e) {
+            print('⚠️ Error parsing PausePlayback: $e');
+          }
+        }
+      });
+
+      // Lắng nghe sự kiện "StartPlaybackRemote" - khi được yêu cầu phát từ thiết bị khác
+      _hubConnection!.on('StartPlaybackRemote', (arguments) {
+        if (arguments != null && arguments.isNotEmpty) {
+          try {
+            final data = arguments[0] as Map<String, dynamic>;
+            print('🎵 Received StartPlaybackRemote:');
+            print('   Song ID: ${data['songId']}');
+            print('   Position: ${data['positionMs']}ms');
+            print('   From: ${data['sourceDevice']}');
+            
+            _startPlaybackRemoteController.add(data);
+          } catch (e) {
+            print('⚠️ Error parsing StartPlaybackRemote: $e');
           }
         }
       });
@@ -166,6 +229,18 @@ class SignalRService {
             }
           } catch (e) {
             print('⚠️ Error parsing PlaybackStarted event: $e');
+          }
+        }
+      });
+
+      // Lắng nghe đồng bộ vị trí phát từ thiết bị khác
+      _hubConnection!.on('PlaybackPositionSync', (arguments) {
+        if (arguments != null && arguments.isNotEmpty) {
+          try {
+            final data = arguments[0] as Map<String, dynamic>;
+            _positionSyncController.add(data);
+          } catch (e) {
+            print('⚠️ Error parsing PlaybackPositionSync: $e');
           }
         }
       });
@@ -221,17 +296,23 @@ class SignalRService {
 
     try {
       print('📝 Attempting to register device with server...');
-      // Thử gọi RegisterDevice, nếu không có thì bỏ qua
-      await _hubConnection!.invoke('RegisterDevice', args: <Object>[_deviceId!]);
-      print('✅ Device registered: $_deviceId');
+      print('   Device ID: $_deviceId');
+      print('   Device Name: $_deviceName');
+      
+      // Gọi RegisterDevice với 3 tham số: deviceId, deviceName, deviceType
+      await _hubConnection!.invoke('RegisterDevice', args: <Object>[
+        _deviceId!,
+        _deviceName ?? 'Mobile App',
+        'Mobile',
+      ]);
+      print('✅ Device registered successfully');
     } catch (e) {
-      // Backend chưa có method RegisterDevice - bỏ qua và tiếp tục
-      print('⚠️ RegisterDevice method not found on server (this is OK)');
-      print('   Mobile will still receive StopPlayback events');
+      print('⚠️ RegisterDevice failed: $e');
+      print('   Mobile will still receive events');
     }
   }
 
-  // Gọi khi thiết bị này bắt đầu phát nhạc - GỬI KÈM THÔNG TIN BÀI HÁT VÀ TÊN THIẾT BỊ
+  // Gọi khi thiết bị này bắt đầu phát nhạc
   Future<void> notifyPlaybackStarted({
     String? songId,
     String? songName,
@@ -244,66 +325,19 @@ class SignalRService {
     }
 
     try {
-      print('🎵 Notifying other devices to stop...');
-      print('   Device: $_deviceName');
+      print('🎵 Notifying server about playback...');
+      print('   Device ID: $_deviceId');
+      print('   Device Name: $_deviceName');
       if (songName != null) {
         print('   Now playing: $songName');
       }
       
-      // Tạo object chứa thông tin bài hát VÀ TÊN THIẾT BỊ
-      final songInfo = {
-        'songId': songId ?? '',
-        'songName': songName ?? 'Unknown',
-        'artistName': artistName ?? '',
-        'imageUrl': imageUrl ?? '',
-        'device': _deviceName ?? 'Mobile App', // Thêm tên thiết bị thực
-        'deviceId': _deviceId ?? '',
-      };
-      
-      // Thử các phương thức khác nhau mà backend có thể có
-      try {
-        // Thử method 1: NotifyPlaybackStarted với songInfo (Mobile style mới)
-        await _hubConnection!.invoke('NotifyPlaybackStarted', args: <Object>[_deviceId!, songInfo]);
-        print('✅ Used NotifyPlaybackStarted (with song info + device name) - other devices notified');
-        return;
-      } catch (e1) {
-        print('   NotifyPlaybackStarted with songInfo not found, trying with deviceId only...');
-      }
-
-      try {
-        // Thử method 2: NotifyPlaybackStarted chỉ với deviceId (backward compatible)
-        await _hubConnection!.invoke('NotifyPlaybackStarted', args: <Object>[_deviceId!]);
-        print('✅ Used NotifyPlaybackStarted (deviceId only) - other devices notified');
-        print('   ⚠️ Backend không nhận được thông tin bài hát - cần update Hub');
-        return;
-      } catch (e2) {
-        print('   NotifyPlaybackStarted not found, trying alternatives...');
-      }
-
-      try {
-        // Thử method 3: StartPlayback
-        await _hubConnection!.invoke('StartPlayback', args: <Object>[_deviceId!, songInfo]);
-        print('✅ Used StartPlayback - other devices notified');
-        return;
-      } catch (e3) {
-        print('   StartPlayback not found, trying alternatives...');
-      }
-
-      try {
-        // Thử method 4: NotifyPlay
-        await _hubConnection!.invoke('NotifyPlay', args: <Object>[_deviceId!, songInfo]);
-        print('✅ Used NotifyPlay - other devices notified');
-        return;
-      } catch (e4) {
-        print('   NotifyPlay not found');
-      }
-
-      // Nếu tất cả đều thất bại
-      print('❌ No playback notification method found on server');
-      print('   Backend Hub needs one of these methods:');
-      print('   - NotifyPlaybackStarted(string deviceId, object songInfo)');
-      print('   - StartPlayback(string deviceId, object songInfo)');
-      print('   - NotifyPlay(string deviceId, object songInfo)');
+      // Gọi NotifyPlaybackStarted với đúng signature: (deviceId, deviceName)
+      await _hubConnection!.invoke('NotifyPlaybackStarted', args: <Object>[
+        _deviceId!,
+        _deviceName ?? 'Mobile App',
+      ]);
+      print('✅ NotifyPlaybackStarted called successfully');
       
     } catch (e) {
       print('❌ Error notifying playback: $e');
@@ -332,60 +366,91 @@ class SignalRService {
 
   // Lấy danh sách thiết bị khả dụng (bao gồm cả thiết bị hiện tại)
   Future<List<DeviceInfo>> getAvailableDevices() async {
-    final devices = <DeviceInfo>[];
-    
-    // Thêm thiết bị hiện tại
-    devices.add(DeviceInfo(
-      deviceId: _deviceId ?? 'unknown',
-      deviceName: _deviceName ?? 'This Device',
-      isActive: true,
-    ));
-    
-    // Lấy các thiết bị khác từ server
+    // Lấy tất cả thiết bị từ server (đã bao gồm thiết bị hiện tại)
     final connectedDevices = await getConnectedDevices();
-    for (var device in connectedDevices) {
-      devices.add(DeviceInfo(
-        deviceId: device['deviceId'] ?? '',
-        deviceName: device['deviceName'] ?? 'Unknown Device',
-        isActive: device['isActive'] ?? false,
-      ));
+    
+    if (connectedDevices.isEmpty) {
+      // Nếu server không trả về gì, thêm thiết bị hiện tại
+      return [
+        DeviceInfo(
+          deviceId: _deviceId ?? 'unknown',
+          connectionId: _hubConnection?.connectionId ?? '',
+          deviceName: _deviceName ?? 'This Device',
+          isActive: true,
+          isCurrentDevice: true,
+        ),
+      ];
     }
     
-    return devices;
+    // Map kết quả từ server
+    return connectedDevices.map((device) => DeviceInfo(
+      deviceId: device['deviceId'] ?? device['connectionId'] ?? '',
+      connectionId: device['connectionId'] ?? '',
+      deviceName: device['deviceName'] ?? 'Unknown Device',
+      isActive: device['isActive'] ?? false,
+      isCurrentDevice: device['isCurrentDevice'] ?? false,
+    )).toList();
   }
   
+  // Gửi đồng bộ vị trí phát đến các thiết bị khác
+  Future<void> syncPlaybackPosition(String songId, int positionMs, bool isPlaying) async {
+    if (_hubConnection == null || !_isConnected) return;
+
+    try {
+      await _hubConnection!.invoke('SyncPlaybackPosition', args: <Object>[
+        songId,
+        positionMs,
+        isPlaying,
+      ]);
+    } catch (e) {
+      // Ignore errors - sync is not critical
+    }
+  }
+
   // Chuyển phát nhạc sang thiết bị khác
-  Future<void> transferPlayback(
+  Future<bool> transferPlayback(
     String targetDeviceId,
     String songId,
     Duration position,
-    bool isPlaying,
-  ) async {
+    bool isPlaying, {
+    String? songName,
+    String? imageUrl,
+    String? artistName,
+  }) async {
     if (_hubConnection == null || !_isConnected) {
       print('⚠️ SignalR not connected - cannot transfer playback');
-      return;
+      return false;
     }
 
     try {
       print('🔄 Transferring playback to device: $targetDeviceId');
       print('   Song: $songId, Position: ${position.inSeconds}s, Playing: $isPlaying');
+      print('   SongName: $songName, ImageUrl: $imageUrl');
       
       await _hubConnection!.invoke('TransferPlayback', args: <Object>[
         targetDeviceId,
         songId,
         position.inMilliseconds,
         isPlaying,
+        songName ?? '',
+        imageUrl ?? '',
+        artistName ?? '',
       ]);
       
       print('✅ Playback transferred successfully');
+      return true;
     } catch (e) {
       print('❌ Error transferring playback: $e');
-      print('   Backend cần có method: TransferPlayback(string deviceId, string songId, int positionMs, bool isPlaying)');
+      return false;
     }
   }
 
   // Lấy danh sách thiết bị đang kết nối
   Future<List<Map<String, dynamic>>> getConnectedDevices() async {
+    print('📱 getConnectedDevices called');
+    print('   _hubConnection: ${_hubConnection != null ? 'exists' : 'null'}');
+    print('   _isConnected: $_isConnected');
+    
     if (_hubConnection == null || !_isConnected) {
       print('⚠️ SignalR not connected - cannot get devices');
       return [];
@@ -409,17 +474,16 @@ class SignalRService {
         for (var item in result) {
           if (item is Map) {
             final device = Map<String, dynamic>.from(item);
-            // Bỏ qua thiết bị hiện tại
-            if (device['deviceId'] != _deviceId) {
-              devices.add(device);
-            }
+            // Thêm tất cả thiết bị (bao gồm cả thiết bị hiện tại)
+            devices.add(device);
           }
         }
       }
       
-      print('✅ Found ${devices.length} other devices');
+      print('✅ Found ${devices.length} devices');
       for (var device in devices) {
-        print('   - ${device['deviceName']} (${device['deviceId']})');
+        final isCurrent = device['isCurrentDevice'] == true ? ' (current)' : '';
+        print('   - ${device['deviceName']} (${device['deviceId']})$isCurrent');
       }
       
       return devices;
@@ -434,6 +498,7 @@ class SignalRService {
   void dispose() {
     _stopPlaybackController.close();
     _playbackInfoController.close();
+    _startPlaybackRemoteController.close();
     disconnect();
   }
 }
@@ -441,12 +506,16 @@ class SignalRService {
 // Model class cho thông tin thiết bị
 class DeviceInfo {
   final String deviceId;
+  final String connectionId;
   final String deviceName;
   final bool isActive;
+  final bool isCurrentDevice;
   
   DeviceInfo({
     required this.deviceId,
+    this.connectionId = '',
     required this.deviceName,
     required this.isActive,
+    this.isCurrentDevice = false,
   });
 }

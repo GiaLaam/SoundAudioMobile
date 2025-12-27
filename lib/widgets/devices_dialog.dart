@@ -18,9 +18,18 @@ class DevicesDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Lọc bỏ thiết bị hiện tại khỏi danh sách thiết bị khác
+    // Phân loại thiết bị: thiết bị hiện tại và thiết bị khác
+    Map<String, dynamic>? currentDevice;
+    try {
+      currentDevice = availableDevices.firstWhere(
+        (device) => device['isCurrentDevice'] == true,
+      );
+    } catch (e) {
+      currentDevice = null;
+    }
+    
     final otherDevices = availableDevices
-        .where((device) => device['deviceId'] != currentDeviceId)
+        .where((device) => device['isCurrentDevice'] != true)
         .toList();
     
     return Dialog(
@@ -68,9 +77,9 @@ class DevicesDialog extends StatelessWidget {
             _buildSectionTitle('Thiết bị này'),
             const SizedBox(height: 8),
             _buildDeviceTile(
-              deviceName: currentDeviceName,
-              deviceId: currentDeviceId,
-              isActive: true,
+              deviceName: currentDevice?['deviceName'] ?? currentDeviceName,
+              deviceId: currentDevice?['deviceId'] ?? currentDeviceId,
+              isActive: currentDevice?['isActive'] ?? true,
               isCurrent: true,
               onTap: () {
                 // Thiết bị hiện tại, không cần làm gì
@@ -92,7 +101,9 @@ class DevicesDialog extends StatelessWidget {
                     isActive: device['isActive'] ?? false,
                     isCurrent: false,
                     onTap: () {
-                      onDeviceSelected?.call(device['deviceId'] ?? '');
+                      // Ưu tiên dùng connectionId để transfer playback
+                      final targetId = device['connectionId'] ?? device['deviceId'] ?? '';
+                      onDeviceSelected?.call(targetId);
                       Navigator.pop(context);
                     },
                   ),

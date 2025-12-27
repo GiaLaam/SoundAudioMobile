@@ -1,12 +1,11 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../services/music_api_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/playlist_service.dart';
 import '../services/auth_service.dart';
 import '../services/album_service.dart';
+import '../theme.dart';
 import 'album_detail_screen.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,14 +28,22 @@ class _HomeScreenState extends State<HomeScreen> {
     _audioService.init();
   }
 
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Chào buổi sáng';
+    if (hour < 18) return 'Chào buổi chiều';
+    return 'Chào buổi tối';
+  }
+
   Future<void> _showPlaylistSelection(Song song) async {
     final user = _authService.currentUser;
     if (user == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Bạn cần đăng nhập để thêm bài hát vào playlist."),
-          backgroundColor: Colors.orange,
+        SnackBar(
+          content: const Text("Bạn cần đăng nhập để thêm bài hát vào playlist."),
+          backgroundColor: SpotifyTheme.cardHover,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
@@ -48,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Lỗi tải playlist: $e"), backgroundColor: Colors.red),
+        SnackBar(content: Text("Lỗi tải playlist: $e"), backgroundColor: SpotifyTheme.error),
       );
       return;
     }
@@ -56,47 +63,64 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.black.withOpacity(0.9),
+      backgroundColor: SpotifyTheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              const Text(
-                "Chọn playlist của bạn",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: SpotifyTheme.textMuted,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              if (playlists.isNotEmpty)
-                ...playlists.map((playlist) {
-                  return ListTile(
-                    leading: const Icon(Icons.playlist_play, color: Colors.white70),
-                    title: Text(playlist.name, style: const TextStyle(color: Colors.white)),
+                const SizedBox(height: 20),
+                Text("Thêm vào playlist", style: SpotifyTheme.headingSmall),
+                const SizedBox(height: 16),
+                if (playlists.isNotEmpty)
+                  ...playlists.map((playlist) => ListTile(
+                    leading: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: SpotifyTheme.cardHover,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(Icons.music_note, color: SpotifyTheme.textSecondary),
+                    ),
+                    title: Text(playlist.name, style: SpotifyTheme.bodyLarge),
                     onTap: () async {
                       Navigator.pop(context);
                       await _addSongToPlaylist(song, playlist.id, user.token);
                     },
-                  );
-                }),
-              const Divider(color: Colors.white24),
-              ListTile(
-                leading: const Icon(Icons.add, color: Colors.greenAccent),
-                title: const Text("Tạo playlist mới", style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showCreatePlaylistDialog(song, user.token);
-                },
-              ),
-            ],
+                  )),
+                const Divider(color: SpotifyTheme.divider, height: 24),
+                ListTile(
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: SpotifyTheme.cardHover,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(Icons.add, color: SpotifyTheme.textPrimary),
+                  ),
+                  title: Text("Tạo playlist mới", style: SpotifyTheme.bodyLarge),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showCreatePlaylistDialog(song, user.token);
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -109,43 +133,35 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF121212),
-        title: const Text("Tạo playlist mới", style: TextStyle(color: Colors.white)),
+        backgroundColor: SpotifyTheme.surface,
+        title: Text("Tạo playlist mới", style: SpotifyTheme.headingSmall),
         content: TextField(
           controller: nameController,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: SpotifyTheme.textPrimary),
           decoration: const InputDecoration(
             hintText: "Nhập tên playlist",
-            hintStyle: TextStyle(color: Colors.white54),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.white24),
-            ),
+            hintStyle: TextStyle(color: SpotifyTheme.textMuted),
           ),
+          autofocus: true,
         ),
         actions: [
           TextButton(
-            child: const Text("Hủy", style: TextStyle(color: Colors.redAccent)),
+            child: Text("Hủy", style: TextStyle(color: SpotifyTheme.textSecondary)),
             onPressed: () => Navigator.pop(context),
           ),
           TextButton(
-            child: const Text("Tạo", style: TextStyle(color: Colors.greenAccent)),
+            child: const Text("Tạo", style: TextStyle(color: SpotifyTheme.primary)),
             onPressed: () async {
               final name = nameController.text.trim();
               if (name.isEmpty) return;
-
               Navigator.pop(context);
-
               try {
-                final playlist = await PlaylistService.createPlaylist(
-                  name,
-                  token,
-                  songId: song.id!,
-                );
+                final playlist = await PlaylistService.createPlaylist(name, token, songId: song.id!);
                 await _addSongToPlaylist(song, playlist.id, token);
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Lỗi tạo playlist: $e"), backgroundColor: Colors.red),
+                  SnackBar(content: Text("Lỗi tạo playlist: $e"), backgroundColor: SpotifyTheme.error),
                 );
               }
             },
@@ -160,12 +176,15 @@ class _HomeScreenState extends State<HomeScreen> {
       await PlaylistService.addSongToPlaylist(playlistId, song.id!, token);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Đã thêm '${song.name}' vào playlist!"), backgroundColor: Colors.green),
+        SnackBar(
+          content: Text("Đã thêm '${song.name}' vào playlist!"),
+          backgroundColor: SpotifyTheme.primary,
+        ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Lỗi khi thêm bài hát: $e"), backgroundColor: Colors.red),
+        SnackBar(content: Text("Lỗi khi thêm bài hát: $e"), backgroundColor: SpotifyTheme.error),
       );
     }
   }
@@ -173,257 +192,261 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        title: const Text(
-          "SoundAudio",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
+      backgroundColor: SpotifyTheme.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Section: Albums
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text(
-                  "Albums",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+        child: CustomScrollView(
+          slivers: [
+            // Header with greeting
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(_getGreeting(), style: SpotifyTheme.headingMedium),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.notifications_outlined, color: SpotifyTheme.textPrimary),
+                          onPressed: () {},
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.history, color: SpotifyTheme.textPrimary),
+                          onPressed: () {},
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.settings_outlined, color: SpotifyTheme.textPrimary),
+                          onPressed: () {},
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              
-              // Albums Grid
-              FutureBuilder<List<Album>>(
-                future: _albumsFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(20.0),
-                        child: CircularProgressIndicator(color: Colors.greenAccent),
-                      ),
-                    );
-                  } else if (snapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Text(
-                          "Lỗi tải albums: ${snapshot.error}",
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                      ),
-                    );
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text(
-                          "Không có album nào.",
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                      ),
-                    );
-                  }
+            ),
 
-                  final albums = snapshot.data!;
-                  return SizedBox(
-                    height: 220,
-                    child: ListView.builder(
+            // Albums Section
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+                child: Text("Albums phổ biến", style: SpotifyTheme.headingSmall),
+              ),
+            ),
+
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 220,
+                child: FutureBuilder<List<Album>>(
+                  future: _albumsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator(color: SpotifyTheme.primary));
+                    }
+                    if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                      return Center(
+                        child: Text("Không có album nào", style: SpotifyTheme.bodyMedium),
+                      );
+                    }
+
+                    final albums = snapshot.data!;
+                    return ListView.builder(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: albums.length,
                       itemBuilder: (context, index) {
                         final album = albums[index];
                         return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AlbumDetailScreen(
-                                  albumId: album.id,
-                                  albumName: album.name,
-                                ),
-                              ),
-                            );
-                          },
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AlbumDetailScreen(albumId: album.id, albumName: album.name),
+                            ),
+                          ),
                           child: Container(
-                            width: 160,
+                            width: 150,
                             margin: const EdgeInsets.only(right: 16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Album cover
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: album.imageUrl != null && album.imageUrl!.isNotEmpty
-                                      ? Image.network(
-                                          album.imageUrl!.startsWith('http')
-                                              ? album.imageUrl!
-                                              : 'https://willing-baltimore-brunette-william.trycloudflare.com${album.imageUrl}',
-                                          width: 160,
-                                          height: 160,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) => Container(
-                                            width: 160,
-                                            height: 160,
-                                            color: Colors.grey[850],
-                                            child: const Icon(Icons.album, color: Colors.white54, size: 60),
-                                          ),
-                                        )
-                                      : Container(
-                                          width: 160,
-                                          height: 160,
-                                          color: Colors.grey[850],
-                                          child: const Icon(Icons.album, color: Colors.white54, size: 60),
-                                        ),
+                                Container(
+                                  height: 150,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: album.imageUrl != null && album.imageUrl!.isNotEmpty
+                                        ? Image.network(
+                                            album.imageUrl!.startsWith('http')
+                                                ? album.imageUrl!
+                                                : 'https://difficulties-filled-did-announce.trycloudflare.com${album.imageUrl}',
+                                            width: 150,
+                                            height: 150,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => _buildAlbumPlaceholder(),
+                                          )
+                                        : _buildAlbumPlaceholder(),
+                                  ),
                                 ),
-                                const SizedBox(height: 8),
-                                // Album name
+                                const SizedBox(height: 10),
                                 Text(
                                   album.name,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
+                                  style: SpotifyTheme.bodyLarge,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                if (album.songCount != null)
-                                  Text(
-                                    '${album.songCount} bài hát',
-                                    style: const TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 12,
-                                    ),
-                                  ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${album.songCount ?? 0} bài hát',
+                                  style: SpotifyTheme.bodySmall,
+                                ),
                               ],
                             ),
                           ),
                         );
                       },
-                    ),
-                  );
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // Section: All Songs
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text(
-                  "Tất cả bài hát",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                    );
+                  },
                 ),
               ),
+            ),
 
-              // Songs List
-              FutureBuilder<List<Song>>(
-                future: _songsFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(20.0),
-                        child: CircularProgressIndicator(color: Colors.greenAccent),
-                      ),
-                    );
-                  } else if (snapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Text(
-                          "Lỗi tải nhạc: ${snapshot.error}",
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    );
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text(
-                          "Không có bài hát nào.",
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    );
-                  }
-
-                  final songs = snapshot.data!;
-                  return ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    itemCount: songs.length,
-                    itemBuilder: (context, index) {
-                      final song = songs[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white10),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.all(12),
-                          leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              "https://willing-baltimore-brunette-william.trycloudflare.com${song.imageUrl}",
-                              width: 60,
-                              height: 60,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => Container(
-                                width: 60,
-                                height: 60,
-                                color: Colors.grey[850],
-                                child: const Icon(Icons.music_note, color: Colors.white54),
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            song.name ?? "Không rõ tên",
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(FontAwesomeIcons.plus, color: Colors.greenAccent),
-                            onPressed: () => _showPlaylistSelection(song),
-                          ),
-                          onTap: () async {
-                            try {
-                              await _audioService.playSong(song, songsAsPlaylist: songs);
-                            } catch (e) {
-                              print('HomeScreen: playSong error: $e');
-                            }
-                          },
-                        ),
-                      );
-                    },
-                  );
-                },
+            // Songs Section Title
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 32, 16, 12),
+                child: Text("Dành cho bạn", style: SpotifyTheme.headingSmall),
               ),
-            ],
+            ),
+
+            // Songs Grid
+            FutureBuilder<List<Song>>(
+              future: _songsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SliverToBoxAdapter(
+                    child: Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: CircularProgressIndicator(color: SpotifyTheme.primary),
+                      ),
+                    ),
+                  );
+                }
+                if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                  return SliverToBoxAdapter(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Text("Không có bài hát nào", style: SpotifyTheme.bodyMedium),
+                      ),
+                    ),
+                  );
+                }
+
+                final songs = snapshot.data!;
+                return SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final song = songs[index];
+                        return _buildSongTile(song, songs);
+                      },
+                      childCount: songs.length,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            // Bottom padding for mini player
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlbumPlaceholder() {
+    return Container(
+      width: 150,
+      height: 150,
+      color: SpotifyTheme.cardHover,
+      child: const Icon(Icons.album, color: SpotifyTheme.textMuted, size: 48),
+    );
+  }
+
+  Widget _buildSongTile(Song song, List<Song> allSongs) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () async {
+            try {
+              await _audioService.playSong(song, songsAsPlaylist: allSongs);
+            } catch (e) {
+              debugPrint('HomeScreen: playSong error: $e');
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            child: Row(
+              children: [
+                // Song image
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.network(
+                    "https://difficulties-filled-did-announce.trycloudflare.com${song.imageUrl}",
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 56,
+                      height: 56,
+                      color: SpotifyTheme.cardHover,
+                      child: const Icon(Icons.music_note, color: SpotifyTheme.textMuted),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Song info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.name ?? "Không rõ tên",
+                        style: SpotifyTheme.bodyLarge,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Nghệ sĩ",
+                        style: SpotifyTheme.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                // More options button
+                IconButton(
+                  icon: const Icon(Icons.more_vert, color: SpotifyTheme.textSecondary),
+                  onPressed: () => _showPlaylistSelection(song),
+                ),
+              ],
+            ),
           ),
         ),
       ),

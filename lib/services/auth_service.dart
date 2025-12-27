@@ -37,7 +37,7 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal();
 
-  static const String baseUrl = 'https://willing-baltimore-brunette-william.trycloudflare.com/api/user';
+  static const String baseUrl = 'https://difficulties-filled-did-announce.trycloudflare.com/api/user';
   User? _currentUser;
   final StreamController<User?> _userController = StreamController.broadcast();
 
@@ -169,5 +169,64 @@ class AuthService {
     await prefs.remove('user_id');
     await prefs.remove('username');
     await prefs.remove('email');
+  }
+
+  Future<bool> updateUsername(String newUsername) async {
+    if (_currentUser == null) return false;
+
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/update-username'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${_currentUser!.token}',
+        },
+        body: json.encode({'username': newUsername}),
+      );
+
+      if (response.statusCode == 200) {
+        // Update local user data
+        _currentUser = User(
+          id: _currentUser!.id,
+          username: newUsername,
+          email: _currentUser!.email,
+          token: _currentUser!.token,
+        );
+        _userController.add(_currentUser);
+
+        // Update SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('username', newUsername);
+
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Update username error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updatePassword(String currentPassword, String newPassword) async {
+    if (_currentUser == null) return false;
+
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/update-password'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${_currentUser!.token}',
+        },
+        body: json.encode({
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        }),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Update password error: $e');
+      return false;
+    }
   }
 }

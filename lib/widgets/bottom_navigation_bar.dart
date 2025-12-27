@@ -85,7 +85,7 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: Image.network(
-                                "https://willing-baltimore-brunette-william.trycloudflare.com${song.imageUrl}",
+                                "https://difficulties-filled-did-announce.trycloudflare.com${song.imageUrl}",
                                 width: 55,
                                 height: 55,
                                 fit: BoxFit.cover,

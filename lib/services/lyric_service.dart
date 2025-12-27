@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/lyric_line.dart';
 
 class LyricService {
-  static const String baseUrl = 'https://willing-baltimore-brunette-william.trycloudflare.com/api/lyric';
+  static const String baseUrl = 'https://difficulties-filled-did-announce.trycloudflare.com/api/lyric';
 
   static Future<List<LyricLine>> fetchLyricsBySongId(String songId) async {
     final response = await http.get(Uri.parse('$baseUrl/by-song/$songId'));
