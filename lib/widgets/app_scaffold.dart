@@ -292,7 +292,7 @@ class AppScaffoldState extends State<AppScaffold> {
                             ClipRRect(
                               borderRadius: BorderRadius.circular(4),
                               child: Image.network(
-                                "https://difficulties-filled-did-announce.trycloudflare.com${song.imageUrl}",
+                                "https://civil-specialist-usual-main.trycloudflare.com${song.imageUrl}",
                                 width: 48,
                                 height: 48,
                                 fit: BoxFit.cover,

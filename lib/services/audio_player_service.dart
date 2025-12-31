@@ -301,11 +301,11 @@ class AudioPlayerService {
       if (rawImage.startsWith('http')) {
         imageFull = rawImage;
       } else if (rawImage.startsWith('/')) {
-        imageFull = 'https://difficulties-filled-did-announce.trycloudflare.com$rawImage';
+        imageFull = 'https://civil-specialist-usual-main.trycloudflare.com$rawImage';
       } else if (rawImage.isEmpty) {
         imageFull = '';
       } else {
-        imageFull = 'https://difficulties-filled-did-announce.trycloudflare.com/$rawImage';
+        imageFull = 'https://civil-specialist-usual-main.trycloudflare.com/$rawImage';
       }
 
       print(' - song id=${s.id}, name=${s.name}, url=$url, image=$imageFull');
@@ -525,7 +525,7 @@ class AudioPlayerService {
   /// Build full url from Song (adjust base if needed)
   String _buildUrlFromSong(Song s) {
     // song.filePath should already be like "/api/music/xxx.mp3"
-    final base = 'https://difficulties-filled-did-announce.trycloudflare.com';
+    final base = 'https://civil-specialist-usual-main.trycloudflare.com';
     final path = s.filePath ?? s.fileName ?? '';
     if (path.startsWith('http')) return path;
     if (path.startsWith('/')) return base + path;

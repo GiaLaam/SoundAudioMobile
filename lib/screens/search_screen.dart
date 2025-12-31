@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/music_api_service.dart';
+import '../services/album_service.dart';
 import '../services/audio_player_service.dart';
 import '../theme.dart';
+import 'album_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -15,6 +17,8 @@ class _SearchScreenState extends State<SearchScreen> {
   final FocusNode _focusNode = FocusNode();
   List<Song> _searchResults = [];
   List<Song> _allSongs = [];
+  List<Album> _albumSearchResults = [];
+  List<Album> _allAlbums = [];
   bool _isLoading = false;
   bool _hasSearched = false;
 
@@ -33,15 +37,19 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAllSongs();
+    _loadData();
   }
 
-  Future<void> _loadAllSongs() async {
+  Future<void> _loadData() async {
     try {
       final songs = await ApiService.fetchSongs();
-      setState(() => _allSongs = songs);
+      final albums = await AlbumService.fetchAlbums();
+      setState(() {
+        _allSongs = songs;
+        _allAlbums = albums;
+      });
     } catch (e) {
-      debugPrint("Error loading songs: $e");
+      debugPrint("Error loading data: $e");
     }
   }
 
@@ -49,6 +57,7 @@ class _SearchScreenState extends State<SearchScreen> {
     if (query.isEmpty) {
       setState(() {
         _searchResults = [];
+        _albumSearchResults = [];
         _hasSearched = false;
       });
       return;
@@ -60,12 +69,20 @@ class _SearchScreenState extends State<SearchScreen> {
     });
 
     try {
-      final filtered = _allSongs
+      final filteredSongs = _allSongs
           .where((s) =>
               (s.name ?? '').toLowerCase().contains(query.toLowerCase()) ||
               (s.fileName ?? '').toLowerCase().contains(query.toLowerCase()))
           .toList();
-      setState(() => _searchResults = filtered);
+
+      final filteredAlbums = _allAlbums
+          .where((a) => (a.name).toLowerCase().contains(query.toLowerCase()))
+          .toList();
+
+      setState(() {
+        _searchResults = filteredSongs;
+        _albumSearchResults = filteredAlbums;
+      });
     } catch (e) {
       debugPrint("Search error: $e");
     } finally {
@@ -130,7 +147,9 @@ class _SearchScreenState extends State<SearchScreen> {
                       ),
                       suffixIcon: _searchController.text.isNotEmpty
                           ? IconButton(
-                              icon: Icon(Icons.clear, color: SpotifyTheme.background.withOpacity(0.8)),
+                              icon: Icon(Icons.clear,
+                                  color:
+                                      SpotifyTheme.background.withOpacity(0.8)),
                               onPressed: () {
                                 _searchController.clear();
                                 _searchSongs('');
@@ -138,7 +157,8 @@ class _SearchScreenState extends State<SearchScreen> {
                             )
                           : null,
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
                     ),
                   ),
                 ),
@@ -171,14 +191,15 @@ class _SearchScreenState extends State<SearchScreen> {
       );
     }
 
-    if (_searchResults.isEmpty) {
+    if (_searchResults.isEmpty && _albumSearchResults.isEmpty) {
       return SliverToBoxAdapter(
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(48),
             child: Column(
               children: [
-                const Icon(Icons.search_off, size: 64, color: SpotifyTheme.textMuted),
+                const Icon(Icons.search_off,
+                    size: 64, color: SpotifyTheme.textMuted),
                 const SizedBox(height: 16),
                 Text(
                   'Không tìm thấy kết quả cho "${_searchController.text}"',
@@ -197,17 +218,121 @@ class _SearchScreenState extends State<SearchScreen> {
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate(
           (context, index) {
-            final song = _searchResults[index];
-            return _buildSongTile(song, player);
+            int currentIndex = 0;
+
+            // Albums section
+            if (_albumSearchResults.isNotEmpty) {
+              if (index == currentIndex) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text("Albums", style: SpotifyTheme.headingSmall),
+                );
+              }
+              currentIndex++;
+
+              if (index < currentIndex + _albumSearchResults.length) {
+                final album = _albumSearchResults[index - currentIndex];
+                return _buildAlbumTile(album);
+              }
+              currentIndex += _albumSearchResults.length;
+            }
+
+            // Songs section
+            if (_searchResults.isNotEmpty) {
+              if (index == currentIndex) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text("Bài hát", style: SpotifyTheme.headingSmall),
+                );
+              }
+              currentIndex++;
+
+              if (index < currentIndex + _searchResults.length) {
+                final song = _searchResults[index - currentIndex];
+                return _buildSongTile(song, player);
+              }
+            }
+            return null;
           },
-          childCount: _searchResults.length,
+          childCount: (_albumSearchResults.isNotEmpty
+                  ? _albumSearchResults.length + 1
+                  : 0) +
+              (_searchResults.isNotEmpty ? _searchResults.length + 1 : 0),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlbumTile(Album album) {
+    final imageUrl = album.imageUrl != null &&
+            album.imageUrl!.startsWith("http")
+        ? album.imageUrl!
+        : "https://civil-specialist-usual-main.trycloudflare.com${album.imageUrl ?? ''}";
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AlbumDetailScreen(
+                albumId: album.id,
+                albumName: album.name,
+              ),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.network(
+                  imageUrl,
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 56,
+                    height: 56,
+                    color: SpotifyTheme.cardHover,
+                    child:
+                        const Icon(Icons.album, color: SpotifyTheme.textMuted),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      album.name,
+                      style: SpotifyTheme.bodyLarge,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Album • ${album.songCount ?? 0} bài hát',
+                      style: SpotifyTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildSongTile(Song song, AudioPlayerService player) {
-    final imageUrl = "https://difficulties-filled-did-announce.trycloudflare.com${song.imageUrl ?? ''}";
+    final imageUrl =
+        "https://civil-specialist-usual-main.trycloudflare.com${song.imageUrl ?? ''}";
 
     return Material(
       color: Colors.transparent,
@@ -232,7 +357,8 @@ class _SearchScreenState extends State<SearchScreen> {
                     width: 56,
                     height: 56,
                     color: SpotifyTheme.cardHover,
-                    child: const Icon(Icons.music_note, color: SpotifyTheme.textMuted),
+                    child: const Icon(Icons.music_note,
+                        color: SpotifyTheme.textMuted),
                   ),
                 ),
               ),
@@ -251,7 +377,8 @@ class _SearchScreenState extends State<SearchScreen> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: SpotifyTheme.textMuted.withOpacity(0.3),
                             borderRadius: BorderRadius.circular(2),
@@ -262,14 +389,6 @@ class _SearchScreenState extends State<SearchScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Nghệ sĩ',
-                            style: SpotifyTheme.bodySmall,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
                       ],
                     ),
                   ],
@@ -340,7 +459,8 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.music_note, color: Colors.white54, size: 30),
+                child: const Icon(Icons.music_note,
+                    color: Colors.white54, size: 30),
               ),
             ),
           ),

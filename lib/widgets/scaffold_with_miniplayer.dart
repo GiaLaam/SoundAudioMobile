@@ -155,7 +155,7 @@ class _ScaffoldWithMiniPlayerState extends State<ScaffoldWithMiniPlayer> {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: Image.network(
-                                  "https://difficulties-filled-did-announce.trycloudflare.com${song.imageUrl}",
+                                  "https://civil-specialist-usual-main.trycloudflare.com${song.imageUrl}",
                                   width: 55,
                                   height: 55,
                                   fit: BoxFit.cover,

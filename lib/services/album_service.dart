@@ -43,7 +43,7 @@ class Album {
 }
 
 class AlbumService {
-  static const String baseUrl = 'https://difficulties-filled-did-announce.trycloudflare.com/api/AlbumApi';
+  static const String baseUrl = 'https://civil-specialist-usual-main.trycloudflare.com/api/AlbumApi';
 
   /// Lấy danh sách tất cả albums
   static Future<List<Album>> fetchAlbums() async {

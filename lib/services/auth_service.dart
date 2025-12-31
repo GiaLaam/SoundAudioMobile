@@ -37,7 +37,7 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal();
 
-  static const String baseUrl = 'https://difficulties-filled-did-announce.trycloudflare.com/api/user';
+  static const String baseUrl = 'https://civil-specialist-usual-main.trycloudflare.com/api/user';
   User? _currentUser;
   final StreamController<User?> _userController = StreamController.broadcast();
 

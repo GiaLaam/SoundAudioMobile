@@ -124,7 +124,7 @@ class SignalRService {
 
     try {
       // URL của SignalR Hub trên backend
-      final serverUrl = 'https://difficulties-filled-did-announce.trycloudflare.com/$_hubEndpoint';
+      final serverUrl = 'https://civil-specialist-usual-main.trycloudflare.com/$_hubEndpoint';
       
       print('🔄 Attempting to connect SignalR...');
       print('   Server: $serverUrl');

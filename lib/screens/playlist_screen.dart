@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../services/auth_service.dart';
 import '../services/playlist_service.dart';
 import '../theme.dart';
@@ -17,11 +18,28 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   final AuthService _authService = AuthService();
   List<Playlist> _playlists = [];
   bool _isLoading = false;
+  StreamSubscription<User?>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadPlaylists();
+    _authSubscription = _authService.userStream.listen((user) {
+      if (mounted) {
+        setState(() {});
+        if (user != null) {
+          _loadPlaylists();
+        } else {
+          setState(() => _playlists = []);
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadPlaylists() async {
@@ -60,7 +78,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: SpotifyTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Đặt tên playlist của bạn', style: SpotifyTheme.headingSmall),
+        title:
+            Text('Đặt tên playlist của bạn', style: SpotifyTheme.headingSmall),
         content: TextField(
           controller: nameController,
           autofocus: true,
@@ -81,7 +100,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Hủy', style: TextStyle(color: SpotifyTheme.textSecondary)),
+            child: Text('Hủy',
+                style: TextStyle(color: SpotifyTheme.textSecondary)),
           ),
           TextButton(
             onPressed: () async {
@@ -98,7 +118,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
               if (user == null) return;
 
               try {
-                final newPlaylist = await PlaylistService.createPlaylist(name, user.token);
+                final newPlaylist =
+                    await PlaylistService.createPlaylist(name, user.token);
                 setState(() => _playlists.insert(0, newPlaylist));
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -116,7 +137,9 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                 }
               }
             },
-            child: const Text('Tạo', style: TextStyle(color: SpotifyTheme.primary, fontWeight: FontWeight.bold)),
+            child: const Text('Tạo',
+                style: TextStyle(
+                    color: SpotifyTheme.primary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -144,7 +167,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                       color: SpotifyTheme.cardHover,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.library_music, size: 48, color: SpotifyTheme.textMuted),
+                    child: const Icon(Icons.library_music,
+                        size: 48, color: SpotifyTheme.textMuted),
                   ),
                   const SizedBox(height: 24),
                   Text('Thư viện của bạn', style: SpotifyTheme.headingMedium),
@@ -191,11 +215,13 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                     Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.search, color: SpotifyTheme.textPrimary),
+                          icon: const Icon(Icons.search,
+                              color: SpotifyTheme.textPrimary),
                           onPressed: () {},
                         ),
                         IconButton(
-                          icon: const Icon(Icons.add, color: SpotifyTheme.textPrimary),
+                          icon: const Icon(Icons.add,
+                              color: SpotifyTheme.textPrimary),
                           onPressed: _showCreatePlaylistDialog,
                         ),
                       ],
@@ -229,7 +255,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                 child: Center(
                   child: Padding(
                     padding: EdgeInsets.all(48),
-                    child: CircularProgressIndicator(color: SpotifyTheme.primary),
+                    child:
+                        CircularProgressIndicator(color: SpotifyTheme.primary),
                   ),
                 ),
               )
@@ -281,7 +308,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
         padding: const EdgeInsets.all(48),
         child: Column(
           children: [
-            const Icon(Icons.library_music_outlined, size: 64, color: SpotifyTheme.textMuted),
+            const Icon(Icons.library_music_outlined,
+                size: 64, color: SpotifyTheme.textMuted),
             const SizedBox(height: 16),
             Text('Chưa có playlist nào', style: SpotifyTheme.bodyLarge),
             const SizedBox(height: 8),
@@ -344,7 +372,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.music_note, color: SpotifyTheme.textMuted, size: 28),
+                child: const Icon(Icons.music_note,
+                    color: SpotifyTheme.textMuted, size: 28),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -360,7 +389,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.push_pin, size: 12, color: SpotifyTheme.primary),
+                        const Icon(Icons.push_pin,
+                            size: 12, color: SpotifyTheme.primary),
                         const SizedBox(width: 4),
                         Text(
                           'Playlist • $songCount bài hát',

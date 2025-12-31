@@ -354,7 +354,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   Widget _buildSongTile(Song song) {
-    final imageUrl = "https://difficulties-filled-did-announce.trycloudflare.com${song.imageUrl}";
+    final imageUrl = "https://civil-specialist-usual-main.trycloudflare.com${song.imageUrl}";
 
     return Material(
       color: Colors.transparent,

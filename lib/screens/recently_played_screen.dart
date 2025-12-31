@@ -83,7 +83,7 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
     final imageUrl = song.imageUrl != null && song.imageUrl!.isNotEmpty
         ? (song.imageUrl!.startsWith('http')
             ? song.imageUrl!
-            : 'https://difficulties-filled-did-announce.trycloudflare.com${song.imageUrl}')
+            : 'https://civil-specialist-usual-main.trycloudflare.com${song.imageUrl}')
         : '';
 
     return Material(

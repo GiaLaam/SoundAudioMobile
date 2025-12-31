@@ -206,7 +206,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     if (_albumDetails?.imageUrl == null) return '';
     final img = _albumDetails!.imageUrl!;
     if (img.startsWith('http')) return img;
-    return 'https://difficulties-filled-did-announce.trycloudflare.com${img.startsWith('/') ? img : '/$img'}';
+    return 'https://civil-specialist-usual-main.trycloudflare.com${img.startsWith('/') ? img : '/$img'}';
   }
 
   @override
@@ -369,7 +369,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     if (song.imageUrl != null && song.imageUrl!.isNotEmpty) {
       imageUrl = song.imageUrl!.startsWith('http')
           ? song.imageUrl
-          : 'https://difficulties-filled-did-announce.trycloudflare.com${song.imageUrl}';
+          : 'https://civil-specialist-usual-main.trycloudflare.com${song.imageUrl}';
     } else if (_albumDetails?.imageUrl != null) {
       imageUrl = _getAlbumImageUrl();
     }

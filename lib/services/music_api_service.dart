@@ -61,7 +61,7 @@ class Song {
 }
 
 class ApiService {
-  static const baseUrl = "https://difficulties-filled-did-announce.trycloudflare.com/api/music";
+  static const baseUrl = "https://civil-specialist-usual-main.trycloudflare.com/api/music";
 
   static Future<List<Song>> fetchSongs() async {
     final response = await http.get(Uri.parse(baseUrl));
@@ -105,7 +105,7 @@ class ApiService {
 
   static Future<String> fetchLyricBySongId(String songId) async {
     final response = await http.get(
-      Uri.parse('https://difficulties-filled-did-announce.trycloudflare.com/api/lyric/by-song/$songId'),
+      Uri.parse('https://civil-specialist-usual-main.trycloudflare.com/api/lyric/by-song/$songId'),
       headers: {'Content-Type': 'application/json'},
     );
 

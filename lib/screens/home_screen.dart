@@ -41,7 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text("Bạn cần đăng nhập để thêm bài hát vào playlist."),
+          content:
+              const Text("Bạn cần đăng nhập để thêm bài hát vào playlist."),
           backgroundColor: SpotifyTheme.cardHover,
           behavior: SnackBarBehavior.floating,
         ),
@@ -55,7 +56,9 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Lỗi tải playlist: $e"), backgroundColor: SpotifyTheme.error),
+        SnackBar(
+            content: Text("Lỗi tải playlist: $e"),
+            backgroundColor: SpotifyTheme.error),
       );
       return;
     }
@@ -87,21 +90,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 16),
                 if (playlists.isNotEmpty)
                   ...playlists.map((playlist) => ListTile(
-                    leading: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: SpotifyTheme.cardHover,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Icon(Icons.music_note, color: SpotifyTheme.textSecondary),
-                    ),
-                    title: Text(playlist.name, style: SpotifyTheme.bodyLarge),
-                    onTap: () async {
-                      Navigator.pop(context);
-                      await _addSongToPlaylist(song, playlist.id, user.token);
-                    },
-                  )),
+                        leading: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: SpotifyTheme.cardHover,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Icon(Icons.music_note,
+                              color: SpotifyTheme.textSecondary),
+                        ),
+                        title:
+                            Text(playlist.name, style: SpotifyTheme.bodyLarge),
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await _addSongToPlaylist(
+                              song, playlist.id, user.token);
+                        },
+                      )),
                 const Divider(color: SpotifyTheme.divider, height: 24),
                 ListTile(
                   leading: Container(
@@ -111,9 +117,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: SpotifyTheme.cardHover,
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Icon(Icons.add, color: SpotifyTheme.textPrimary),
+                    child:
+                        const Icon(Icons.add, color: SpotifyTheme.textPrimary),
                   ),
-                  title: Text("Tạo playlist mới", style: SpotifyTheme.bodyLarge),
+                  title:
+                      Text("Tạo playlist mới", style: SpotifyTheme.bodyLarge),
                   onTap: () {
                     Navigator.pop(context);
                     _showCreatePlaylistDialog(song, user.token);
@@ -146,22 +154,28 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           TextButton(
-            child: Text("Hủy", style: TextStyle(color: SpotifyTheme.textSecondary)),
+            child: Text("Hủy",
+                style: TextStyle(color: SpotifyTheme.textSecondary)),
             onPressed: () => Navigator.pop(context),
           ),
           TextButton(
-            child: const Text("Tạo", style: TextStyle(color: SpotifyTheme.primary)),
+            child: const Text("Tạo",
+                style: TextStyle(color: SpotifyTheme.primary)),
             onPressed: () async {
               final name = nameController.text.trim();
               if (name.isEmpty) return;
               Navigator.pop(context);
               try {
-                final playlist = await PlaylistService.createPlaylist(name, token, songId: song.id!);
+                final playlist = await PlaylistService.createPlaylist(
+                    name, token,
+                    songId: song.id!);
                 await _addSongToPlaylist(song, playlist.id, token);
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Lỗi tạo playlist: $e"), backgroundColor: SpotifyTheme.error),
+                  SnackBar(
+                      content: Text("Lỗi tạo playlist: $e"),
+                      backgroundColor: SpotifyTheme.error),
                 );
               }
             },
@@ -171,7 +185,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _addSongToPlaylist(Song song, String playlistId, String token) async {
+  Future<void> _addSongToPlaylist(
+      Song song, String playlistId, String token) async {
     try {
       await PlaylistService.addSongToPlaylist(playlistId, song.id!, token);
       if (!mounted) return;
@@ -184,7 +199,9 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Lỗi khi thêm bài hát: $e"), backgroundColor: SpotifyTheme.error),
+        SnackBar(
+            content: Text("Lỗi khi thêm bài hát: $e"),
+            backgroundColor: SpotifyTheme.error),
       );
     }
   }
@@ -197,39 +214,40 @@ class _HomeScreenState extends State<HomeScreen> {
         child: CustomScrollView(
           slivers: [
             // Header with greeting
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(_getGreeting(), style: SpotifyTheme.headingMedium),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.notifications_outlined, color: SpotifyTheme.textPrimary),
-                          onPressed: () {},
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.history, color: SpotifyTheme.textPrimary),
-                          onPressed: () {},
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.settings_outlined, color: SpotifyTheme.textPrimary),
-                          onPressed: () {},
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            // SliverToBoxAdapter(
+            //   child: Padding(
+            //     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            //     child: Row(
+            //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            //       children: [
+            //         Text(_getGreeting(), style: SpotifyTheme.headingMedium),
+            //         Row(
+            //           children: [
+            //             IconButton(
+            //               icon: const Icon(Icons.notifications_outlined, color: SpotifyTheme.textPrimary),
+            //               onPressed: () {},
+            //             ),
+            //             IconButton(
+            //               icon: const Icon(Icons.history, color: SpotifyTheme.textPrimary),
+            //               onPressed: () {},
+            //             ),
+            //             IconButton(
+            //               icon: const Icon(Icons.settings_outlined, color: SpotifyTheme.textPrimary),
+            //               onPressed: () {},
+            //             ),
+            //           ],
+            //         ),
+            //       ],
+            //     ),
+            //   ),
+            // ),
 
             // Albums Section
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                child: Text("Albums phổ biến", style: SpotifyTheme.headingSmall),
+                child:
+                    Text("Albums phổ biến", style: SpotifyTheme.headingSmall),
               ),
             ),
 
@@ -240,11 +258,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   future: _albumsFuture,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator(color: SpotifyTheme.primary));
+                      return const Center(
+                          child: CircularProgressIndicator(
+                              color: SpotifyTheme.primary));
                     }
-                    if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                    if (snapshot.hasError ||
+                        !snapshot.hasData ||
+                        snapshot.data!.isEmpty) {
                       return Center(
-                        child: Text("Không có album nào", style: SpotifyTheme.bodyMedium),
+                        child: Text("Không có album nào",
+                            style: SpotifyTheme.bodyMedium),
                       );
                     }
 
@@ -259,7 +282,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => AlbumDetailScreen(albumId: album.id, albumName: album.name),
+                              builder: (_) => AlbumDetailScreen(
+                                  albumId: album.id, albumName: album.name),
                             ),
                           ),
                           child: Container(
@@ -282,15 +306,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
-                                    child: album.imageUrl != null && album.imageUrl!.isNotEmpty
+                                    child: album.imageUrl != null &&
+                                            album.imageUrl!.isNotEmpty
                                         ? Image.network(
                                             album.imageUrl!.startsWith('http')
                                                 ? album.imageUrl!
-                                                : 'https://difficulties-filled-did-announce.trycloudflare.com${album.imageUrl}',
+                                                : 'https://civil-specialist-usual-main.trycloudflare.com${album.imageUrl}',
                                             width: 150,
                                             height: 150,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => _buildAlbumPlaceholder(),
+                                            errorBuilder: (_, __, ___) =>
+                                                _buildAlbumPlaceholder(),
                                           )
                                         : _buildAlbumPlaceholder(),
                                   ),
@@ -303,10 +329,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 2),
-                                Text(
-                                  '${album.songCount ?? 0} bài hát',
-                                  style: SpotifyTheme.bodySmall,
-                                ),
                               ],
                             ),
                           ),
@@ -335,17 +357,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Center(
                       child: Padding(
                         padding: EdgeInsets.all(32),
-                        child: CircularProgressIndicator(color: SpotifyTheme.primary),
+                        child: CircularProgressIndicator(
+                            color: SpotifyTheme.primary),
                       ),
                     ),
                   );
                 }
-                if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                if (snapshot.hasError ||
+                    !snapshot.hasData ||
+                    snapshot.data!.isEmpty) {
                   return SliverToBoxAdapter(
                     child: Center(
                       child: Padding(
                         padding: const EdgeInsets.all(32),
-                        child: Text("Không có bài hát nào", style: SpotifyTheme.bodyMedium),
+                        child: Text("Không có bài hát nào",
+                            style: SpotifyTheme.bodyMedium),
                       ),
                     ),
                   );
@@ -406,7 +432,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: Image.network(
-                    "https://difficulties-filled-did-announce.trycloudflare.com${song.imageUrl}",
+                    "https://civil-specialist-usual-main.trycloudflare.com${song.imageUrl}",
                     width: 56,
                     height: 56,
                     fit: BoxFit.cover,
@@ -414,7 +440,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: 56,
                       height: 56,
                       color: SpotifyTheme.cardHover,
-                      child: const Icon(Icons.music_note, color: SpotifyTheme.textMuted),
+                      child: const Icon(Icons.music_note,
+                          color: SpotifyTheme.textMuted),
                     ),
                   ),
                 ),
@@ -431,18 +458,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        "Nghệ sĩ",
-                        style: SpotifyTheme.bodySmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
                     ],
                   ),
                 ),
                 // More options button
                 IconButton(
-                  icon: const Icon(Icons.more_vert, color: SpotifyTheme.textSecondary),
+                  icon: const Icon(Icons.more_vert,
+                      color: SpotifyTheme.textSecondary),
                   onPressed: () => _showPlaylistSelection(song),
                 ),
               ],

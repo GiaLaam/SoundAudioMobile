@@ -313,7 +313,7 @@ class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderSt
         final rawImage = (tag is Map && tag['imageUrl'] != null)
             ? tag['imageUrl'] as String
             : (AudioPlayerService().currentSong?.imageUrl ?? widget.currentSong.imageUrl ?? '');
-        final imageUrl = rawImage.startsWith('http') ? rawImage : (rawImage.isNotEmpty ? 'https://difficulties-filled-did-announce.trycloudflare.com$rawImage' : rawImage);
+        final imageUrl = rawImage.startsWith('http') ? rawImage : (rawImage.isNotEmpty ? 'https://civil-specialist-usual-main.trycloudflare.com$rawImage' : rawImage);
 
         return Container(
           width: size.width - 48,
@@ -560,7 +560,7 @@ class _PlayerScreenState extends State<PlayerScreen> with SingleTickerProviderSt
               final songTag = entry.value.tag as Map?;
               final songName = songTag?['name'] ?? 'Không rõ tên';
               final img = songTag?['imageUrl'] ?? '';
-              final imageUrl = img.startsWith('http') ? img : (img.isNotEmpty ? 'https://difficulties-filled-did-announce.trycloudflare.com$img' : '');
+              final imageUrl = img.startsWith('http') ? img : (img.isNotEmpty ? 'https://civil-specialist-usual-main.trycloudflare.com$img' : '');
 
               return ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 24),
